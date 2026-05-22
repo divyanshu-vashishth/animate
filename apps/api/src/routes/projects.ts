@@ -108,3 +108,26 @@ projectRoutes.put("/:id/document", async (c) => {
     .where(eq(projects.id, projectId));
   return c.json({ ok: true });
 });
+
+projectRoutes.delete("/:id", async (c) => {
+  const user = getAuthUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const projectId = c.req.param("id");
+  const db = getDb();
+  
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.userId, user.id)));
+  if (!project) return c.json({ error: "Not found" }, 404);
+
+  await db
+    .delete(projectDocuments)
+    .where(eq(projectDocuments.projectId, projectId));
+
+  await db
+    .delete(projects)
+    .where(eq(projects.id, projectId));
+
+  return c.json({ ok: true });
+});

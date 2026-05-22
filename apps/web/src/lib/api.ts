@@ -60,4 +60,19 @@ export const api = {
     fetchApi<{ job: { id: string; status: string; outputUrl?: string } }>(
       `/render/jobs/${jobId}`
     ),
+
+  listAssets: () =>
+    fetchApi<{
+      assets: Array<{ id: string; name: string; type: string; url: string; createdAt: string }>;
+    }>("/assets"),
+
+  uploadAsset: (name: string, type: string, url: string) =>
+    fetchApi<{ asset: { id: string; name: string; type: string; url: string; createdAt: string } }>("/assets", {
+      method: "POST",
+      body: JSON.stringify({ name, type, url }),
+    }),
+  deleteProject: (projectId: string) =>
+    fetchApi<{ ok: boolean }>(`/projects/${projectId}`, {
+      method: "DELETE",
+    }),
 };

@@ -86,8 +86,7 @@ export class PixiRenderer {
     folder: string,
     filename: string
   ): Promise<DisplayObjectEntry> {
-    const layer = this.layerContainers.get(layerId);
-    if (!layer) throw new Error(`Layer ${layerId} not found`);
+    const layer = this.ensureLayer(layerId, 0);
 
     const container = new Container();
     container.label = id;
@@ -103,8 +102,7 @@ export class PixiRenderer {
   }
 
   createRigDisplay(id: string, layerId: string): DisplayObjectEntry {
-    const layer = this.layerContainers.get(layerId);
-    if (!layer) throw new Error(`Layer ${layerId} not found`);
+    const layer = this.ensureLayer(layerId, 0);
     const container = new Container();
     container.label = id;
     const entry: DisplayObjectEntry = { container };

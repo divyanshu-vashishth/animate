@@ -38,7 +38,33 @@ export interface RigEntityData {
   boneRotations?: Record<string, number>;
 }
 
-export type EntityData = SpriteEntityData | RigEntityData;
+export interface TextEntityData {
+  id: EntityId;
+  type: "text";
+  name: string;
+  layerId: LayerId;
+  text: string;
+  transform: TransformData;
+  fontSize?: number;
+  color?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface ImageEntityData {
+  id: EntityId;
+  type: "image";
+  name: string;
+  layerId: LayerId;
+  src: string;
+  transform: TransformData;
+  width?: number;
+  height?: number;
+  startTime?: number;
+  endTime?: number;
+}
+
+export type EntityData = SpriteEntityData | RigEntityData | TextEntityData | ImageEntityData;
 
 export interface StageData {
   width: number;

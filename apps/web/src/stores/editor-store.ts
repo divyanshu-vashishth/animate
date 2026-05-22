@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LayerData, ProjectDocument } from "@stickman/shared";
+import type { ProjectDocument } from "@stickman/shared";
 
 export type ActiveTool = "select" | "pan" | "move";
 
@@ -14,6 +14,8 @@ interface EditorState {
   timelineTime: number;
   isDirty: boolean;
   isSaving: boolean;
+  leftPanelTab: string | null;
+  inspectorCollapsed: boolean;
 
   setProject: (id: string, name: string, doc: ProjectDocument) => void;
   setDocument: (doc: ProjectDocument) => void;
@@ -24,9 +26,11 @@ interface EditorState {
   setTimelineTime: (time: number) => void;
   setDirty: (dirty: boolean) => void;
   setSaving: (saving: boolean) => void;
+  setLeftPanelTab: (tab: string | null) => void;
+  setInspectorCollapsed: (collapsed: boolean) => void;
 }
 
-export const useEditorStore = create<EditorState>((set, get) => ({
+export const useEditorStore = create<EditorState>((set) => ({
   projectId: null,
   projectName: "Untitled",
   document: null,
@@ -37,13 +41,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   timelineTime: 0,
   isDirty: false,
   isSaving: false,
+  leftPanelTab: "video", // Default tab on editor open
+  inspectorCollapsed: false,
 
   setProject: (id, name, doc) =>
     set({
       projectId: id,
       projectName: name,
       document: doc,
-      activeLayerId: doc.layers[1]?.id ?? doc.layers[0]?.id ?? null,
+      activeLayerId: doc.layers[0]?.id ?? null,
       isDirty: false,
     }),
 
@@ -63,4 +69,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setDirty: (isDirty) => set({ isDirty }),
 
   setSaving: (isSaving) => set({ isSaving }),
+
+  setLeftPanelTab: (leftPanelTab) => set({ leftPanelTab }),
+
+  setInspectorCollapsed: (inspectorCollapsed) => set({ inspectorCollapsed }),
 }));

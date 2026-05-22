@@ -16,7 +16,7 @@ import { useEditorStore } from "@/stores/editor-store";
 
 const EMPTY_LAYERS: LayerData[] = [];
 
-export function LayersPanel() {
+export function LayersPanel({ className }: { className?: string }) {
   const layers = useEditorStore((s) => s.document?.layers ?? EMPTY_LAYERS);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const setActiveLayerId = useEditorStore((s) => s.setActiveLayerId);
@@ -43,7 +43,7 @@ export function LayersPanel() {
   };
 
   return (
-    <EditorPanel title="Layers" className="w-56 shrink-0 border-r">
+    <EditorPanel title="Layers" className={className ?? "w-56 shrink-0 border-r"}>
       <div className="flex flex-col gap-1 p-2">
         <Button
           size="sm"

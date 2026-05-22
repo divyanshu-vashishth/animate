@@ -1,18 +1,29 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { authClient } from "@stickman/auth/client";
 import { Toolbar } from "@/components/editor/Toolbar";
-import { AssetsPanel } from "@/components/editor/AssetsPanel";
-import { LayersPanel } from "@/components/editor/LayersPanel";
 import { CanvasDropZone } from "@/components/editor/CanvasDropZone";
 import { TimelinePanel } from "@/components/editor/TimelinePanel";
 import { InspectorPanel } from "@/components/editor/InspectorPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
-import { commandBus } from "@/lib/command-bus";
-import { AUTOSAVE_DEBOUNCE_MS } from "@stickman/shared";
+import { AUTOSAVE_DEBOUNCE_MS, spriteManifest } from "@stickman/shared";
+import { 
+  IconVideo, 
+  IconTypography, 
+  IconPhoto, 
+  IconDownload, 
+  IconPlus, 
+  IconTrash, 
+  IconUpload, 
+  IconCheck, 
+  IconRefresh 
+} from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function EditorPage() {
   const params = useParams();
@@ -20,9 +31,24 @@ export default function EditorPage() {
   const projectId = params.projectId as string;
   const setProject = useEditorStore((s) => s.setProject);
   const document = useEditorStore((s) => s.document);
+  const setDocument = useEditorStore((s) => s.setDocument);
   const isDirty = useEditorStore((s) => s.isDirty);
+  const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
+  const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
   const { data: session, isPending } = authClient.useSession();
 
+  const leftPanelTab = useEditorStore((s) => s.leftPanelTab);
+  const setLeftPanelTab = useEditorStore((s) => s.setLeftPanelTab);
+  const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
+  const setInspectorCollapsed = useEditorStore((s) => s.setInspectorCollapsed);
+
+  // Local tab-specific sub-states
+  const [textVal, setTextVal] = useState("hi");
+  const [textSubTab, setTextSubTab] = useState<"add" | "list">("add");
+  const [mediaSubTab, setMediaSubTab] = useState<"upload" | "characters">("characters");
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
+
+  // Load project document from Hono API
   useEffect(() => {
     if (isPending) return;
     if (!session?.user) {
@@ -42,6 +68,7 @@ export default function EditorPage() {
     })();
   }, [projectId, router, setProject, session, isPending]);
 
+  // Debounced Autosave
   const save = useCallback(async () => {
     if (!projectId || !document || !isDirty) return;
     useEditorStore.getState().setSaving(true);
@@ -59,20 +86,545 @@ export default function EditorPage() {
     return () => clearTimeout(timer);
   }, [isDirty, document, save]);
 
+  if (isPending || !document) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-xs text-muted-foreground font-semibold">Loading animator studio...</p>
+      </main>
+    );
+  }
+
+  const handleTabClick = (tab: string) => {
+    if (leftPanelTab === tab) {
+      setLeftPanelTab(null); // Toggle Collapse
+    } else {
+      setLeftPanelTab(tab);
+    }
+  };
+
+  // Add custom Text entity
+  const handleAddText = () => {
+    if (!textVal.trim()) {
+      toast.error("Please enter some text first");
+      return;
+    }
+    const newTextEntity = {
+      id: crypto.randomUUID(),
+      type: "text" as const,
+      name: `Text (${textVal.slice(0, 10)})`,
+      layerId: document.layers[0]?.id || "default-layer",
+      text: textVal,
+      transform: { x: 320, y: 150, rotation: 0, scaleX: 1, scaleY: 1 },
+      fontSize: 28,
+      color: "#000000",
+      startTime: 0,
+      endTime: document.timeline?.duration ?? 5,
+    };
+    const updated = [...document.entities, newTextEntity];
+    setDocument({
+      ...document,
+      entities: updated,
+    });
+    setSelectedEntity(newTextEntity.id);
+    toast.success(`Added text "${textVal}" to canvas`);
+    setTextVal("");
+  };
+
+  // Handle local file uploads (converts to Base64)
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Src = event.target?.result as string;
+      const newImage = {
+        id: crypto.randomUUID(),
+        type: "image" as const,
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        layerId: document.layers[0]?.id || "default-layer",
+        src: base64Src,
+        transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
+        width: 140,
+        height: 140,
+        startTime: 0,
+        endTime: document.timeline?.duration ?? 5,
+      };
+
+      const updated = [...document.entities, newImage];
+      setDocument({
+        ...document,
+        entities: updated,
+      });
+      setSelectedEntity(newImage.id);
+      toast.success(`Successfully uploaded "${newImage.name}"`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Quick click-to-add character poses
+  const handleAddSprite = (clip: string) => {
+    let newEntity: any = null;
+
+    if (clip.startsWith("extras/prop/")) {
+      const filename = clip.split("/").pop()!;
+      const cleanName = filename.replace(".png", "");
+      newEntity = {
+        id: crypto.randomUUID(),
+        type: "sprite",
+        name: cleanName,
+        layerId: document.layers[0]?.id || "default-layer",
+        clip,
+        transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
+        startTime: 0,
+        endTime: document.timeline?.duration ?? 5,
+      };
+    } else {
+      const parsed = clip.split("/");
+      if (parsed.length === 2) {
+        const [character, action] = parsed;
+        newEntity = {
+          id: crypto.randomUUID(),
+          type: "sprite",
+          name: `${character} (${action})`,
+          layerId: document.layers[0]?.id || "default-layer",
+          clip,
+          transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
+          startTime: 0,
+          endTime: document.timeline?.duration ?? 5,
+        };
+      }
+    }
+
+    if (newEntity) {
+      const updated = [...document.entities, newEntity];
+      setDocument({
+        ...document,
+        entities: updated,
+      });
+      setSelectedEntity(newEntity.id);
+      toast.success(`Added ${newEntity.name} to canvas`);
+    }
+  };
+
+  // Render trigger progress simulator
+  const triggerExport = () => {
+    setExportProgress(0);
+    const interval = setInterval(() => {
+      setExportProgress((prev) => {
+        if (prev === null) return 0;
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setExportProgress(null);
+            // Download JSON Draft
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(document, null, 2));
+            const downloadAnchor = window.document.createElement("a");
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `stickman_draft_${projectId.slice(0, 5)}.json`);
+            window.document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            toast.success("Animation exported successfully!");
+          }, 400);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 150);
+  };
+
+  const entities = document.entities || [];
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground relative">
+      
+      {/* EXPORT OVERLAY SCREEN */}
+      {exportProgress !== null && (
+        <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center select-none">
+          <div className="bg-card/75 border border-border/40 p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
+            <div className="animate-spin text-primary mb-4">
+              <IconRefresh className="h-8 w-8" />
+            </div>
+            <h3 className="font-extrabold text-foreground mb-1">Compiling Stickman Studio Video</h3>
+            <p className="text-xs text-muted-foreground mb-5">Blending frame layers and timeline events...</p>
+            <div className="h-2 w-full bg-neutral-900 rounded-full overflow-hidden mb-2">
+              <div 
+                className="h-full bg-primary transition-all duration-150"
+                style={{ width: `${exportProgress}%` }}
+              />
+            </div>
+            <span className="text-[10px] font-black tracking-widest text-primary tabular-nums">
+              {exportProgress}% COMPLETE
+            </span>
+          </div>
+        </div>
+      )}
+
       <Toolbar />
-      <div className="flex min-h-0 flex-1">
-        <AssetsPanel />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1">
-            <LayersPanel />
+
+      <div className="flex min-h-0 flex-1 relative">
+        
+        {/* 1. SLIM LEFT SIDEBAR (Width: w-16) */}
+        <div className="flex w-16 shrink-0 flex-col items-center border-r border-border/50 bg-card/60 backdrop-blur-md py-4 gap-4.5 z-10 select-none">
+          {/* Setup tab */}
+          <button
+            onClick={() => handleTabClick("video")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+              leftPanelTab === "video"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            }`}
+            title="Setup Background"
+          >
+            <IconVideo className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">Setup</span>
+          </button>
+
+          {/* Text tab */}
+          <button
+            onClick={() => handleTabClick("text")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+              leftPanelTab === "text"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            }`}
+            title="Add Texts"
+          >
+            <IconTypography className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">Text</span>
+          </button>
+
+          {/* Media tab */}
+          <button
+            onClick={() => handleTabClick("image")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+              leftPanelTab === "image"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            }`}
+            title="Media Library"
+          >
+            <IconPhoto className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">Media</span>
+          </button>
+
+          {/* Export tab */}
+          <button
+            onClick={() => handleTabClick("export")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+              leftPanelTab === "export"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            }`}
+            title="Export Animation"
+          >
+            <IconDownload className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">Export</span>
+          </button>
+        </div>
+
+        {/* 2. SLIDING LEFT SUB-PANEL */}
+        <div 
+          className={`shrink-0 border-r border-border/50 bg-card/45 backdrop-blur-lg transition-all duration-300 ease-in-out overflow-hidden z-10 ${
+            leftPanelTab ? "w-64" : "w-0 border-r-0"
+          }`}
+        >
+          <div className="h-full w-64 flex flex-col select-none">
+            
+            {/* TAB 1: CANVAS SETUP */}
+            {leftPanelTab === "video" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Canvas Setup
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2">
+                      Canvas Presets
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#FFFFFF" } })}
+                        className="p-2 border rounded-lg bg-white text-black font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
+                      >
+                        White
+                      </button>
+                      <button
+                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#F3F4F6" } })}
+                        className="p-2 border rounded-lg bg-neutral-100 text-neutral-800 font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
+                      >
+                        Soft Gray
+                      </button>
+                      <button
+                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#111827" } })}
+                        className="p-2 border rounded-lg bg-neutral-900 text-white font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
+                      >
+                        Dark Night
+                      </button>
+                      <button
+                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#ECFDF5" } })}
+                        className="p-2 border rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
+                      >
+                        Mint Paper
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2">
+                      Background Presets
+                    </h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {spriteManifest.backgrounds.map((bg) => (
+                        <button
+                          key={bg}
+                          onClick={() => handleAddSprite(`extras/background/${bg}`)}
+                          className="flex items-center gap-2 p-2 border border-border/40 rounded-lg hover:bg-accent/40 text-left"
+                        >
+                          <IconPhoto className="h-4 w-4 text-emerald-400 shrink-0" />
+                          <span className="truncate text-[11px] capitalize">{bg.replace(".png", "")}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: TYPOGRAPHY LAYERS */}
+            {leftPanelTab === "text" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-2 flex items-center justify-center gap-1 bg-muted/10">
+                  <button
+                    onClick={() => setTextSubTab("add")}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${textSubTab === "add" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Add Text
+                  </button>
+                  <button
+                    onClick={() => setTextSubTab("list")}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${textSubTab === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Your Texts
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 text-xs font-semibold">
+                  {textSubTab === "add" ? (
+                    <div className="flex flex-col gap-3">
+                      <Label htmlFor="text-val-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                        Enter Text value
+                      </Label>
+                      <textarea
+                        id="text-val-input"
+                        value={textVal}
+                        onChange={(e) => setTextVal(e.target.value)}
+                        placeholder="Enter text..."
+                        className="w-full h-20 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary"
+                      />
+                      <Button
+                        onClick={handleAddText}
+                        className="w-full h-8.5 font-extrabold gap-1.5 shadow-md shadow-primary/10"
+                      >
+                        <IconPlus className="h-4 w-4" /> Add Text Layer
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2 select-none">
+                        Active Text Elements
+                      </h4>
+                      {entities.filter((e) => e.type === "text").map((item) => {
+                        const isSelected = selectedEntityIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setSelectedEntity(item.id)}
+                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer ${
+                              isSelected 
+                                ? "border-primary/40 bg-primary/5 text-primary" 
+                                : "border-border/30 hover:bg-accent/40"
+                            }`}
+                          >
+                            <span className="truncate flex-1 capitalize pr-2">{item.text || "Untitled"}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const updated = document.entities.filter((ent) => ent.id !== item.id);
+                                setDocument({ ...document, entities: updated });
+                                setSelectedEntity(null);
+                                toast.success("Removed text layer");
+                              }}
+                              className="text-muted-foreground hover:text-destructive p-1 rounded"
+                            >
+                              <IconTrash className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {entities.filter((e) => e.type === "text").length === 0 && (
+                        <p className="text-[10px] text-muted-foreground/60 italic text-center select-none p-4">
+                          No text elements currently in canvas
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: MEDIA LIBRARY */}
+            {leftPanelTab === "image" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-2 flex items-center justify-center gap-1 bg-muted/10">
+                  <button
+                    onClick={() => setMediaSubTab("characters")}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${mediaSubTab === "characters" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Your Media
+                  </button>
+                  <button
+                    onClick={() => setMediaSubTab("upload")}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${mediaSubTab === "upload" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Upload New
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3 text-xs font-semibold flex flex-col gap-4">
+                  {mediaSubTab === "upload" ? (
+                    <div className="flex flex-col gap-3">
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                        Upload custom photos
+                      </Label>
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-2">
+                        <IconUpload className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-[10px] font-bold text-muted-foreground">Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {/* Character Lists */}
+                      <div className="flex flex-col gap-1">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 px-1 mb-1.5">
+                          Characters
+                        </h4>
+                        
+                        {Object.entries(spriteManifest.characters).map(([character, actions]) => (
+                          <div key={character} className="flex flex-col gap-1.5 mb-2.5">
+                            <span className="capitalize text-[11px] font-extrabold text-foreground px-1 border-l-2 border-primary/40 pl-2">
+                              {character}
+                            </span>
+                            <div className="grid grid-cols-2 gap-1.5 pl-1.5">
+                              {Object.keys(actions).map((action) => (
+                                <button
+                                  key={action}
+                                  onClick={() => handleAddSprite(`${character}/${action}`)}
+                                  className="p-1.5 border border-border/30 rounded-lg hover:border-primary hover:bg-primary/5 text-left truncate capitalize text-[10px]"
+                                >
+                                  {action}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Props list */}
+                      <div className="flex flex-col gap-1 mt-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 px-1 mb-1.5">
+                          Props
+                        </h4>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {spriteManifest.props.slice(0, 10).map((prop) => (
+                            <button
+                              key={prop}
+                              onClick={() => handleAddSprite(`extras/prop/${prop}`)}
+                              className="p-1.5 border border-border/30 rounded-lg hover:border-primary hover:bg-primary/5 text-left truncate capitalize text-[10px]"
+                            >
+                              {prop.replace(".png", "")}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: EXPORT OPTIONS */}
+            {leftPanelTab === "export" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Export Studio
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[10px] text-muted-foreground leading-relaxed select-none mb-2">
+                      Compile your layers, media coordinates, texts, and active timelines into a finished animation.
+                    </p>
+                    <Button
+                      onClick={triggerExport}
+                      className="w-full h-9 font-black gap-1.5 shadow-lg shadow-primary/20"
+                    >
+                      <IconCheck className="h-4 w-4 shrink-0" />
+                      Export Animation (JSON)
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* 3. CENTER PANEL (Canvas + Timeline) */}
+        <div className="flex min-w-0 flex-1 flex-col relative">
+          <div className="flex min-h-0 flex-1 relative bg-neutral-900/40">
             <CanvasDropZone />
           </div>
-          <TimelinePanel />
+          <div className="border-t border-border/60 bg-card z-10">
+            <TimelinePanel />
+          </div>
         </div>
+
+        {/* 4. COLLAPSIBLE RIGHT SIDEBAR (Inspector) */}
+        <div 
+          className={`shrink-0 border-l border-border/60 bg-card flex flex-col relative transition-all duration-300 ease-in-out overflow-hidden z-10 ${
+            inspectorCollapsed ? "w-0 border-l-0" : "w-72"
+          }`}
+        >
+          {/* Floating pull-tab handle on the left edge of Inspector */}
+          <button
+            onClick={() => setInspectorCollapsed(!inspectorCollapsed)}
+            className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center h-12 w-4.5 bg-card border border-border border-r-0 rounded-l-md hover:bg-accent/40 text-muted-foreground hover:text-primary z-20 transition-colors"
+            style={{ transform: 'translateX(-100%) translateY(-50%)' }}
+            title={inspectorCollapsed ? "Expand Inspector Panel" : "Collapse Inspector Panel"}
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 20 20" 
+              fill="currentColor" 
+              className={`h-3 w-3 transform transition-transform duration-300 ${inspectorCollapsed ? "" : "rotate-180"}`}
+            >
+              <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+            </svg>
+          </button>
+          
+          <div className="h-full w-72">
+            <InspectorPanel className="h-full w-full border-none shadow-none rounded-none max-h-none overflow-y-auto bg-transparent" />
+          </div>
+        </div>
+
       </div>
-      <InspectorPanel />
     </div>
   );
 }
