@@ -29,7 +29,7 @@ export class PixiRenderer {
       canvas,
       width: this.width,
       height: this.height,
-      backgroundColor: 0x1a1a2e,
+      backgroundColor: 0x171717,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,

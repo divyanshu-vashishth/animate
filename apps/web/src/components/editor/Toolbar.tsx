@@ -1,6 +1,18 @@
 "use client";
 
+import {
+  IconBone,
+  IconDeviceFloppy,
+  IconDownload,
+  IconHandMove,
+  IconPointer,
+  IconPlayerPause,
+  IconPlayerPlay,
+  IconPlayerStop,
+} from "@tabler/icons-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { commandBus } from "@/lib/command-bus";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
@@ -30,7 +42,9 @@ export function Toolbar() {
   const handleExport = async () => {
     if (!projectId) return;
     const { job } = await api.createRenderJob(projectId, "mp4");
-    alert(`Export job started: ${job.id}`);
+    toast.success("Export job started", {
+      description: job.id,
+    });
   };
 
   const handlePlay = () => {
@@ -45,13 +59,14 @@ export function Toolbar() {
   };
 
   return (
-    <div className="flex h-12 items-center gap-2 border-b border-white/10 bg-[hsl(222,20%,10%)] px-4">
-      <span className="mr-4 font-bold text-violet-400">Stickman Studio</span>
+    <div className="flex h-12 items-center gap-2 border-b bg-card px-3">
+      <span className="mr-3 truncate text-sm font-semibold">Stickman Studio</span>
       <Button
         variant={activeTool === "select" ? "default" : "ghost"}
         size="sm"
         onClick={() => setActiveTool("select")}
       >
+        <IconPointer data-icon="inline-start" />
         Select
       </Button>
       <Button
@@ -59,10 +74,16 @@ export function Toolbar() {
         size="sm"
         onClick={() => setActiveTool("pan")}
       >
+        <IconHandMove data-icon="inline-start" />
         Pan
       </Button>
-      <div className="mx-2 h-6 w-px bg-white/10" />
+      <Separator orientation="vertical" className="mx-1 h-6" />
       <Button size="sm" variant="ghost" onClick={handlePlay}>
+        {playbackState === "playing" ? (
+          <IconPlayerPause data-icon="inline-start" />
+        ) : (
+          <IconPlayerPlay data-icon="inline-start" />
+        )}
         {playbackState === "playing" ? "Pause" : "Play"}
       </Button>
       <Button
@@ -70,16 +91,20 @@ export function Toolbar() {
         variant="ghost"
         onClick={() => commandBus.dispatch({ type: "SeekTimeline", time: 0 })}
       >
+        <IconPlayerStop data-icon="inline-start" />
         Stop
       </Button>
-      <div className="mx-2 h-6 w-px bg-white/10" />
+      <Separator orientation="vertical" className="mx-1 h-6" />
       <Button size="sm" variant="outline" onClick={handleSave} disabled={!isDirty || isSaving}>
+        <IconDeviceFloppy data-icon="inline-start" />
         {isSaving ? "Saving..." : "Save"}
       </Button>
       <Button size="sm" variant="outline" onClick={handleExport}>
+        <IconDownload data-icon="inline-start" />
         Export
       </Button>
       <Button size="sm" variant="ghost" onClick={handleConvertRig} disabled={!selectedEntityIds[0]}>
+        <IconBone data-icon="inline-start" />
         To Rig
       </Button>
     </div>

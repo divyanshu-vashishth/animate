@@ -59,7 +59,7 @@ export function createDefaultDocument(): ProjectDocument {
   const charLayerId = crypto.randomUUID();
   return {
     version: 1,
-    stage: { width: 1920, height: 1080, backgroundColor: "#1a1a2e" },
+    stage: { width: 1920, height: 1080, backgroundColor: "#171717" },
     layers: [
       { id: bgLayerId, name: "Background", order: 0, visible: true, locked: false },
       { id: charLayerId, name: "Characters", order: 1, visible: true, locked: false },

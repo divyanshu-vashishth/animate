@@ -161,7 +161,7 @@ export function EngineCanvas({ width, height }: EngineCanvasProps) {
   }, [document, projectId]);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[#12121f]">
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-background">
       <canvas ref={canvasRef} className="h-full w-full touch-none" />
     </div>
   );

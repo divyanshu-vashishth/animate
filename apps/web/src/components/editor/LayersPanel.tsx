@@ -1,12 +1,19 @@
 "use client";
 
+import {
+  IconCircle,
+  IconEye,
+  IconEyeOff,
+  IconLock,
+  IconLockOpen,
+  IconPlus,
+} from "@tabler/icons-react";
 import type { LayerData } from "@stickman/shared";
 import { Button } from "@/components/ui/button";
 import { EditorPanel } from "./editor-panel";
 import { commandBus } from "@/lib/command-bus";
 import { useEditorStore } from "@/stores/editor-store";
 
-/** Stable empty reference — avoids Zustand infinite loop when document is null */
 const EMPTY_LAYERS: LayerData[] = [];
 
 export function LayersPanel() {
@@ -15,12 +22,15 @@ export function LayersPanel() {
   const setActiveLayerId = useEditorStore((s) => s.setActiveLayerId);
   const document = useEditorStore((s) => s.document);
 
-  const updateLayer = (layerId: string, patch: Partial<{ visible: boolean; locked: boolean }>) => {
+  const updateLayer = (
+    layerId: string,
+    patch: Partial<{ visible: boolean; locked: boolean }>
+  ) => {
     if (!document) return;
     const updated = {
       ...document,
-      layers: document.layers.map((l) =>
-        l.id === layerId ? { ...l, ...patch } : l
+      layers: document.layers.map((layer) =>
+        layer.id === layerId ? { ...layer, ...patch } : layer
       ),
     };
     useEditorStore.getState().setDocument(updated);
@@ -33,41 +43,54 @@ export function LayersPanel() {
   };
 
   return (
-    <EditorPanel title="Layers" className="w-48 shrink-0 border-r">
+    <EditorPanel title="Layers" className="w-56 shrink-0 border-r">
       <div className="flex flex-col gap-1 p-2">
         <Button
           size="sm"
           variant="outline"
           onClick={() => commandBus.dispatch({ type: "AddLayer", name: "New Layer" })}
         >
-          + Layer
+          <IconPlus data-icon="inline-start" />
+          Layer
         </Button>
         {[...layers].reverse().map((layer) => (
           <div
             key={layer.id}
-            className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs ${
-              activeLayerId === layer.id ? "bg-violet-600/30" : "hover:bg-white/5"
+            role="button"
+            tabIndex={0}
+            className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+              activeLayerId === layer.id ? "bg-accent text-accent-foreground" : "hover:bg-muted"
             }`}
             onClick={() => setActiveLayerId(layer.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") setActiveLayerId(layer.id);
+            }}
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation();
                 updateLayer(layer.id, { visible: !layer.visible });
               }}
-              className="w-4"
+              aria-label={layer.visible ? "Hide layer" : "Show layer"}
             >
-              {layer.visible ? "👁" : "—"}
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
+              {layer.visible ? <IconEye /> : <IconEyeOff />}
+            </Button>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation();
                 updateLayer(layer.id, { locked: !layer.locked });
               }}
-              className="w-4"
+              aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
             >
-              {layer.locked ? "🔒" : "○"}
-            </button>
+              {layer.locked ? <IconLock /> : <IconLockOpen />}
+            </Button>
+            <IconCircle data-icon="inline-start" className="text-muted-foreground" />
             <span className="flex-1 truncate">{layer.name}</span>
           </div>
         ))}

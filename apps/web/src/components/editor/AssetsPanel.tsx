@@ -1,6 +1,7 @@
 "use client";
 
 import { spriteManifest } from "@stickman/shared";
+import { Button } from "@/components/ui/button";
 import { EditorPanel } from "./editor-panel";
 import { clipPath } from "@stickman/shared";
 import { useEditorStore } from "@/stores/editor-store";
@@ -16,25 +17,27 @@ export function AssetsPanel() {
 
   return (
     <EditorPanel title="Assets" className="h-full w-56 shrink-0">
-      <div className="p-2 text-xs">
-        <section className="mb-4">
-          <h4 className="mb-2 font-semibold text-white/70">Characters</h4>
+      <div className="flex flex-col gap-4 p-2 text-xs">
+        <section className="flex flex-col gap-2">
+          <h4 className="font-semibold text-muted-foreground">Characters</h4>
           {Object.entries(manifest.characters).map(([character, clips]) => (
-            <div key={character} className="mb-3">
-              <p className="mb-1 capitalize text-violet-300">{character}</p>
+            <div key={character} className="flex flex-col gap-1">
+              <p className="capitalize text-foreground">{character}</p>
               <div className="flex flex-wrap gap-1">
                 {Object.keys(clips).map((action) => {
                   const clip = clipPath(character, action);
                   return (
-                    <button
+                    <Button
                       key={clip}
                       draggable
+                      size="xs"
+                      variant="secondary"
                       onDragStart={(e) => onDragStart(e, clip)}
-                      className="rounded bg-white/5 px-2 py-1 text-[10px] hover:bg-violet-600/30"
+                      className="h-6 rounded-md px-2 text-[10px]"
                       title={clip}
                     >
                       {action}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -42,42 +45,46 @@ export function AssetsPanel() {
           ))}
         </section>
 
-        <section className="mb-4">
-          <h4 className="mb-2 font-semibold text-white/70">Backgrounds</h4>
+        <section className="flex flex-col gap-2">
+          <h4 className="font-semibold text-muted-foreground">Backgrounds</h4>
           <div className="flex flex-wrap gap-1">
             {manifest.backgrounds.map((bg) => (
-              <button
+              <Button
                 key={bg}
                 draggable
+                size="xs"
+                variant="secondary"
                 onDragStart={(e) =>
                   onDragStart(e, `extras/background/${bg}`)
                 }
-                className="rounded bg-white/5 px-2 py-1 text-[10px] hover:bg-white/10"
+                className="h-6 rounded-md px-2 text-[10px]"
               >
                 {bg.replace(".png", "")}
-              </button>
+              </Button>
             ))}
           </div>
         </section>
 
-        <section>
-          <h4 className="mb-2 font-semibold text-white/70">Props</h4>
+        <section className="flex flex-col gap-2">
+          <h4 className="font-semibold text-muted-foreground">Props</h4>
           <div className="flex flex-wrap gap-1">
             {manifest.props.slice(0, 12).map((prop) => (
-              <button
+              <Button
                 key={prop}
                 draggable
+                size="xs"
+                variant="secondary"
                 onDragStart={(e) => onDragStart(e, `extras/prop/${prop}`)}
-                className="rounded bg-white/5 px-2 py-1 text-[10px] hover:bg-white/10"
+                className="h-6 rounded-md px-2 text-[10px]"
               >
                 {prop.replace(".png", "")}
-              </button>
+              </Button>
             ))}
           </div>
         </section>
 
         {!activeLayerId && (
-          <p className="mt-4 text-amber-400">Select a layer first</p>
+          <p className="text-xs text-muted-foreground">Select a layer first</p>
         )}
       </div>
     </EditorPanel>
