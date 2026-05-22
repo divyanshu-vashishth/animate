@@ -64,6 +64,18 @@ export default function DashboardPage() {
     setTheme(isDark ? "dark" : "light");
   }, []);
 
+  // Auto-collapse sidebar on smaller screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const toggleTheme = () => {
     if (theme === "dark") {
       window.document.documentElement.classList.remove("dark");
@@ -425,7 +437,7 @@ export default function DashboardPage() {
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-900 border border-border/30 group-hover:border-primary/20 transition-colors">
                             <IconMovie className="h-5 w-5 text-primary group-hover:scale-110 transition-transform duration-300" />
                           </div>
-                          <span className="text-[10px] text-muted-foreground font-semibold bg-muted px-2.5 py-0.5 rounded-full border border-border/20">
+                          <span className="text-[10px] text-primary font-bold bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
                             {new Date(p.updatedAt).toLocaleDateString(undefined, {
                               month: "short",
                               day: "numeric",

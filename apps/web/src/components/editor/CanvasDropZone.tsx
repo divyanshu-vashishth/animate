@@ -212,7 +212,11 @@ export function CanvasDropZone() {
                 {frameSrc ? (
                   <img
                     src={frameSrc}
-                    className="h-28 w-auto object-contain pointer-events-none select-none"
+                    style={{
+                      height: `${entity.width ?? 120}px`,
+                      width: "auto",
+                    }}
+                    className="object-contain pointer-events-none select-none"
                     alt={entity.name}
                     onError={(e) => {
                       // Fallback in case of asset path issues

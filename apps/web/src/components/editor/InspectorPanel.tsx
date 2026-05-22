@@ -150,6 +150,25 @@ export function InspectorPanel({ className }: { className?: string }) {
                 />
               </>
             )}
+
+            {entity.type === "sprite" && (
+              <>
+                <Label htmlFor="inp-sprite-w" className="text-muted-foreground">Size px</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="inp-sprite-w"
+                    type="range"
+                    min={40}
+                    max={400}
+                    step={5}
+                    value={(entity as any).width ?? 120}
+                    onChange={(e) => updateProperty("width", Number(e.target.value))}
+                    className="h-1.5 flex-1 accent-primary rounded bg-neutral-900 cursor-pointer"
+                  />
+                  <span className="w-10 font-black text-right">{(entity as any).width ?? 120}px</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

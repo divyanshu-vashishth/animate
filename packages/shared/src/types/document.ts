@@ -25,6 +25,10 @@ export interface SpriteEntityData {
   clip: string;
   transform: TransformData;
   playing?: boolean;
+  width?: number;
+  height?: number;
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface RigEntityData {
