@@ -1,0 +1,488 @@
+{
+  "characters": {
+    "fighter": {
+      "air_attack": {
+        "frames": [
+          "fighter_air_attack_0062.png",
+          "fighter_air_attack_0063.png"
+        ],
+        "fps": 16,
+        "folder": "Fighter sprites"
+      },
+      "climb": {
+        "frames": [
+          "fighter_climb_0039.png",
+          "fighter_climb_0040.png",
+          "fighter_climb_0041.png",
+          "fighter_climb_0042.png"
+        ],
+        "fps": 10,
+        "folder": "Fighter sprites"
+      },
+      "combo": {
+        "frames": [
+          "fighter_combo_0064.png",
+          "fighter_combo_0065.png",
+          "fighter_combo_0066.png",
+          "fighter_combo_0067.png",
+          "fighter_combo_0068.png",
+          "fighter_combo_0069.png",
+          "fighter_combo_0070.png",
+          "fighter_combo_0071.png",
+          "fighter_combo_0072.png",
+          "fighter_combo_0073.png",
+          "fighter_combo_0074.png",
+          "fighter_combo_0075.png",
+          "fighter_combo_0076.png",
+          "fighter_combo_0077.png",
+          "fighter_combo_0078.png",
+          "fighter_combo_0079.png",
+          "fighter_combo_0080.png",
+          "fighter_combo_0081.png",
+          "fighter_combo_0082.png"
+        ],
+        "fps": 24,
+        "folder": "Fighter sprites"
+      },
+      "dash": {
+        "frames": [
+          "fighter_dash_0033.png",
+          "fighter_dash_0034.png",
+          "fighter_dash_0035.png",
+          "fighter_dash_0036.png",
+          "fighter_dash_0037.png",
+          "fighter_dash_0038.png"
+        ],
+        "fps": 20,
+        "folder": "Fighter sprites"
+      },
+      "death": {
+        "frames": [
+          "fighter_death_0052.png",
+          "fighter_death_0053.png",
+          "fighter_death_0054.png",
+          "fighter_death_0055.png",
+          "fighter_death_0056.png",
+          "fighter_death_0057.png",
+          "fighter_death_0058.png",
+          "fighter_death_0059.png",
+          "fighter_death_0060.png",
+          "fighter_death_0061.png"
+        ],
+        "fps": 10,
+        "folder": "Fighter sprites"
+      },
+      "hit": {
+        "frames": [
+          "fighter_hit_0048.png",
+          "fighter_hit_0049.png",
+          "fighter_hit_0050.png",
+          "fighter_hit_0051.png"
+        ],
+        "fps": 12,
+        "folder": "Fighter sprites"
+      },
+      "idle": {
+        "frames": [
+          "fighter_Idle_0001.png",
+          "fighter_Idle_0002.png",
+          "fighter_Idle_0003.png",
+          "fighter_Idle_0004.png",
+          "fighter_Idle_0005.png",
+          "fighter_Idle_0006.png",
+          "fighter_Idle_0007.png",
+          "fighter_Idle_0008.png"
+        ],
+        "fps": 8,
+        "folder": "Fighter sprites"
+      },
+      "jump": {
+        "frames": [
+          "fighter_jump_0043.png",
+          "fighter_jump_0044.png",
+          "fighter_jump_0045.png",
+          "fighter_jump_0046.png",
+          "fighter_jump_0047.png"
+        ],
+        "fps": 12,
+        "folder": "Fighter sprites"
+      },
+      "run": {
+        "frames": [
+          "fighter_run_0017.png",
+          "fighter_run_0018.png",
+          "fighter_run_0019.png",
+          "fighter_run_0020.png",
+          "fighter_run_0021.png",
+          "fighter_run_0022.png",
+          "fighter_run_0023.png",
+          "fighter_run_0024.png"
+        ],
+        "fps": 16,
+        "folder": "Fighter sprites"
+      },
+      "slide": {
+        "frames": [
+          "fighter_slide_0025.png",
+          "fighter_slide_0026.png",
+          "fighter_slide_0027.png",
+          "fighter_slide_0028.png",
+          "fighter_slide_0029.png",
+          "fighter_slide_0030.png",
+          "fighter_slide_0031.png",
+          "fighter_slide_0032.png"
+        ],
+        "fps": 12,
+        "folder": "Fighter sprites"
+      },
+      "walk": {
+        "frames": [
+          "fighter_walk_0009.png",
+          "fighter_walk_0010.png",
+          "fighter_walk_0011.png",
+          "fighter_walk_0012.png",
+          "fighter_walk_0013.png",
+          "fighter_walk_0014.png",
+          "fighter_walk_0015.png",
+          "fighter_walk_0016.png"
+        ],
+        "fps": 12,
+        "folder": "Fighter sprites"
+      },
+      "wallslide": {
+        "frames": [
+          "fighter_wallslide0083.png",
+          "fighter_wallslide0084.png"
+        ],
+        "fps": 12,
+        "folder": "Fighter sprites"
+      }
+    },
+    "pistol": {
+      "air_attack": {
+        "frames": [
+          "pistol_air_attack_0062.png",
+          "pistol_air_attack_0063.png"
+        ],
+        "fps": 16,
+        "folder": "Pistol sprites"
+      },
+      "climb": {
+        "frames": [
+          "pistol_climb_0039.png",
+          "pistol_climb_0040.png",
+          "pistol_climb_0041.png",
+          "pistol_climb_0042.png"
+        ],
+        "fps": 10,
+        "folder": "Pistol sprites"
+      },
+      "dash": {
+        "frames": [
+          "pistol_dash_0033.png",
+          "pistol_dash_0034.png",
+          "pistol_dash_0035.png",
+          "pistol_dash_0036.png",
+          "pistol_dash_0037.png",
+          "pistol_dash_0038.png"
+        ],
+        "fps": 20,
+        "folder": "Pistol sprites"
+      },
+      "death": {
+        "frames": [
+          "pistol_death_0052.png",
+          "pistol_death_0053.png",
+          "pistol_death_0054.png",
+          "pistol_death_0055.png",
+          "pistol_death_0056.png",
+          "pistol_death_0057.png",
+          "pistol_death_0058.png",
+          "pistol_death_0059.png",
+          "pistol_death_0060.png",
+          "pistol_death_0061.png"
+        ],
+        "fps": 10,
+        "folder": "Pistol sprites"
+      },
+      "hit": {
+        "frames": [
+          "pistol_hit_0048.png",
+          "pistol_hit_0049.png",
+          "pistol_hit_0050.png",
+          "pistol_hit_0051.png"
+        ],
+        "fps": 12,
+        "folder": "Pistol sprites"
+      },
+      "idle": {
+        "frames": [
+          "pistol_Idle_0001.png",
+          "pistol_Idle_0002.png",
+          "pistol_Idle_0003.png",
+          "pistol_Idle_0004.png",
+          "pistol_Idle_0005.png",
+          "pistol_Idle_0006.png",
+          "pistol_Idle_0007.png",
+          "pistol_Idle_0008.png"
+        ],
+        "fps": 8,
+        "folder": "Pistol sprites"
+      },
+      "jump": {
+        "frames": [
+          "pistol_jump_0043.png",
+          "pistol_jump_0044.png",
+          "pistol_jump_0045.png",
+          "pistol_jump_0046.png",
+          "pistol_jump_0047.png"
+        ],
+        "fps": 12,
+        "folder": "Pistol sprites"
+      },
+      "run": {
+        "frames": [
+          "pistol_run_0017.png",
+          "pistol_run_0018.png",
+          "pistol_run_0019.png",
+          "pistol_run_0020.png",
+          "pistol_run_0021.png",
+          "pistol_run_0022.png",
+          "pistol_run_0023.png",
+          "pistol_run_0024.png"
+        ],
+        "fps": 16,
+        "folder": "Pistol sprites"
+      },
+      "shot": {
+        "frames": [
+          "pistol_shot_0064.png",
+          "pistol_shot_0065.png"
+        ],
+        "fps": 16,
+        "folder": "Pistol sprites"
+      },
+      "slide": {
+        "frames": [
+          "pistol_slide_0025.png",
+          "pistol_slide_0026.png",
+          "pistol_slide_0027.png",
+          "pistol_slide_0028.png",
+          "pistol_slide_0029.png",
+          "pistol_slide_0030.png",
+          "pistol_slide_0031.png",
+          "pistol_slide_0032.png"
+        ],
+        "fps": 12,
+        "folder": "Pistol sprites"
+      },
+      "walk": {
+        "frames": [
+          "pistol_walk_0009.png",
+          "pistol_walk_0010.png",
+          "pistol_walk_0011.png",
+          "pistol_walk_0012.png",
+          "pistol_walk_0013.png",
+          "pistol_walk_0014.png",
+          "pistol_walk_0015.png",
+          "pistol_walk_0016.png"
+        ],
+        "fps": 12,
+        "folder": "Pistol sprites"
+      },
+      "wallslide": {
+        "frames": [
+          "pistol_wallslide0066.png",
+          "pistol_wallslide0067.png"
+        ],
+        "fps": 12,
+        "folder": "Pistol sprites"
+      }
+    },
+    "sword": {
+      "air_attack": {
+        "frames": [
+          "sword_air_attack_0062.png",
+          "sword_air_attack_0063.png",
+          "sword_air_attack_0064.png"
+        ],
+        "fps": 16,
+        "folder": "Sword sprites"
+      },
+      "climb": {
+        "frames": [
+          "sword_climb_0039.png",
+          "sword_climb_0040.png",
+          "sword_climb_0041.png",
+          "sword_climb_0042.png"
+        ],
+        "fps": 10,
+        "folder": "Sword sprites"
+      },
+      "combo": {
+        "frames": [
+          "sword_combo_0065.png",
+          "sword_combo_0066.png",
+          "sword_combo_0067.png",
+          "sword_combo_0068.png",
+          "sword_combo_0069.png",
+          "sword_combo_0070.png",
+          "sword_combo_0071.png",
+          "sword_combo_0072.png",
+          "sword_combo_0073.png",
+          "sword_combo_0074.png",
+          "sword_combo_0075.png"
+        ],
+        "fps": 24,
+        "folder": "Sword sprites"
+      },
+      "dash": {
+        "frames": [
+          "sword_dash_0033.png",
+          "sword_dash_0034.png",
+          "sword_dash_0035.png",
+          "sword_dash_0036.png",
+          "sword_dash_0037.png",
+          "sword_dash_0038.png"
+        ],
+        "fps": 20,
+        "folder": "Sword sprites"
+      },
+      "death": {
+        "frames": [
+          "sword_death_0052.png",
+          "sword_death_0053.png",
+          "sword_death_0054.png",
+          "sword_death_0055.png",
+          "sword_death_0056.png",
+          "sword_death_0057.png",
+          "sword_death_0058.png",
+          "sword_death_0059.png",
+          "sword_death_0060.png",
+          "sword_death_0061.png"
+        ],
+        "fps": 10,
+        "folder": "Sword sprites"
+      },
+      "hit": {
+        "frames": [
+          "sword_hit_0048.png",
+          "sword_hit_0049.png",
+          "sword_hit_0050.png",
+          "sword_hit_0051.png"
+        ],
+        "fps": 12,
+        "folder": "Sword sprites"
+      },
+      "idle": {
+        "frames": [
+          "sword_Idle_0001.png",
+          "sword_Idle_0002.png",
+          "sword_Idle_0003.png",
+          "sword_Idle_0004.png",
+          "sword_Idle_0005.png",
+          "sword_Idle_0006.png",
+          "sword_Idle_0007.png",
+          "sword_Idle_0008.png"
+        ],
+        "fps": 8,
+        "folder": "Sword sprites"
+      },
+      "jump": {
+        "frames": [
+          "sword_jump_0043.png",
+          "sword_jump_0044.png",
+          "sword_jump_0045.png",
+          "sword_jump_0046.png",
+          "sword_jump_0047.png"
+        ],
+        "fps": 12,
+        "folder": "Sword sprites"
+      },
+      "run": {
+        "frames": [
+          "sword_run_0017.png",
+          "sword_run_0018.png",
+          "sword_run_0019.png",
+          "sword_run_0020.png",
+          "sword_run_0021.png",
+          "sword_run_0022.png",
+          "sword_run_0023.png",
+          "sword_run_0024.png"
+        ],
+        "fps": 16,
+        "folder": "Sword sprites"
+      },
+      "slide": {
+        "frames": [
+          "sword_slide_0025.png",
+          "sword_slide_0026.png",
+          "sword_slide_0027.png",
+          "sword_slide_0028.png",
+          "sword_slide_0029.png",
+          "sword_slide_0030.png",
+          "sword_slide_0031.png",
+          "sword_slide_0032.png"
+        ],
+        "fps": 12,
+        "folder": "Sword sprites"
+      },
+      "walk": {
+        "frames": [
+          "sword_walk_0009.png",
+          "sword_walk_0010.png",
+          "sword_walk_0011.png",
+          "sword_walk_0012.png",
+          "sword_walk_0013.png",
+          "sword_walk_0014.png",
+          "sword_walk_0015.png",
+          "sword_walk_0016.png"
+        ],
+        "fps": 12,
+        "folder": "Sword sprites"
+      },
+      "wallslide": {
+        "frames": [
+          "sword_wallslide0076.png",
+          "sword_wallslide0077.png"
+        ],
+        "fps": 12,
+        "folder": "Sword sprites"
+      }
+    }
+  },
+  "vfx": {
+    "hit_effect": {
+      "frames": [
+        "hit_effect_0001.png",
+        "hit_effect_0002.png",
+        "hit_effect_0003.png",
+        "hit_effect_0004.png"
+      ],
+      "fps": 16,
+      "folder": "hit effect"
+    }
+  },
+  "backgrounds": [
+    "background1.png",
+    "background2.png",
+    "background3.png"
+  ],
+  "props": [
+    "building1.png",
+    "building2.png",
+    "building3.png",
+    "bullet.png",
+    "grass_foreground.png",
+    "ground.png",
+    "groundBig.png",
+    "house1.png",
+    "house2.png",
+    "house4.png",
+    "ladder.png",
+    "rocks.png",
+    "sidewall.png",
+    "tree1.png",
+    "tree2.png"
+  ]
+}

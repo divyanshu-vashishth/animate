@@ -1,0 +1,21 @@
+{
+  "name": "stickman-studio",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "db:generate": "pnpm --filter @stickman/database db:generate",
+    "db:migrate": "pnpm --filter @stickman/database db:migrate",
+    "sprites:manifest": "pnpm --filter @stickman/shared build:manifest",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.14",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.19.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

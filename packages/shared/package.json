@@ -1,0 +1,27 @@
+{
+  "name": "@stickman/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./sprite-manifest": {
+      "types": "./src/sprite-manifest.json",
+      "default": "./src/sprite-manifest.json"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:manifest": "tsx scripts/build-sprite-manifest.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@stickman/config": "workspace:*",
+    "@types/node": "^22.15.21",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

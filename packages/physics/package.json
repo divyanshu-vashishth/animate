@@ -1,0 +1,15 @@
+{
+  "name": "@stickman/physics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@stickman/shared": "workspace:*",
+    "matter-js": "^0.20.0"
+  },
+  "devDependencies": {
+    "@stickman/config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}

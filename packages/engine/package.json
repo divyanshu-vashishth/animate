@@ -1,0 +1,23 @@
+{
+  "name": "@stickman/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stickman/shared": "workspace:*",
+    "@stickman/timeline": "workspace:*",
+    "gsap": "^3.13.0",
+    "pixi.js": "^8.9.2"
+  },
+  "devDependencies": {
+    "@stickman/config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}
