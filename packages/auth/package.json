@@ -4,8 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "default": "./dist/client.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@stickman/database": "workspace:*",
@@ -14,6 +24,7 @@
   },
   "devDependencies": {
     "@stickman/config": "workspace:*",
+    "@types/node": "^22.15.21",
     "typescript": "^5.8.3"
   }
 }

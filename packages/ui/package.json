@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./globals.css": "./src/globals.css"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "clsx": "^2.1.1",
