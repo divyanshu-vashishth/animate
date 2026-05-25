@@ -20,6 +20,6 @@ export interface TimelineData {
   tracks: TrackData[];
 }
 
-export function createDefaultTimeline(duration = 5): TimelineData {
+export function createDefaultTimeline(duration = 10): TimelineData {
   return { duration, fps: 60, tracks: [] };
 }

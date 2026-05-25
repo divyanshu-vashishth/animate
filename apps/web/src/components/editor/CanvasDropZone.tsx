@@ -5,6 +5,45 @@ import { useEditorStore } from "@/stores/editor-store";
 import { spriteManifest, spriteUrl } from "@stickman/shared";
 import { toast } from "sonner";
 
+// Keyframe property evaluator to support smooth animations on canvas
+const evaluateProperty = (document: any, entityId: string, property: string, time: number, defaultValue: any) => {
+  if (!document || !document.timeline || !document.timeline.tracks) {
+    return defaultValue;
+  }
+  const track = document.timeline.tracks.find(
+    (t: any) => t.entityId === entityId && t.property === property
+  );
+  if (!track || !track.keyframes || track.keyframes.length === 0) {
+    return defaultValue;
+  }
+
+  // Sort keyframes by ascending time
+  const keyframes = [...track.keyframes].sort((a, b) => a.time - b.time);
+
+  // Time is before or at the first keyframe
+  if (time <= keyframes[0].time) {
+    return keyframes[0].value;
+  }
+  // Time is after or at the last keyframe
+  if (time >= keyframes[keyframes.length - 1].time) {
+    return keyframes[keyframes.length - 1].value;
+  }
+
+  // Linear/Discrete interpolation between matching keyframes
+  for (let i = 0; i < keyframes.length - 1; i++) {
+    const kfA = keyframes[i];
+    const kfB = keyframes[i + 1];
+    if (time >= kfA.time && time <= kfB.time) {
+      if (typeof kfA.value === "number" && typeof kfB.value === "number") {
+        const ratio = (time - kfA.time) / (kfB.time - kfA.time);
+        return kfA.value + (kfB.value - kfA.value) * ratio;
+      }
+      return kfA.value; // Discrete transition for strings, booleans, clips, texts
+    }
+  }
+  return defaultValue;
+};
+
 export function CanvasDropZone() {
   const document = useEditorStore((s) => s.document);
   const setDocument = useEditorStore((s) => s.setDocument);
@@ -56,6 +95,23 @@ export function CanvasDropZone() {
         transform: { x, y, rotation: 0, scaleX: 1, scaleY: 1 },
         startTime: 0,
         endTime: document.timeline?.duration ?? 5,
+        width: 120,
+        height: 120,
+      };
+    } else if (clip.startsWith("extras/background/")) {
+      const filename = clip.split("/").pop()!;
+      const cleanName = filename.replace(".png", "");
+      newEntity = {
+        id: crypto.randomUUID(),
+        type: "sprite",
+        name: cleanName,
+        layerId: document.layers[0]?.id || "default-layer",
+        clip,
+        transform: { x: 320, y: 360, rotation: 0, scaleX: 1, scaleY: 1 },
+        startTime: 0,
+        endTime: document.timeline?.duration ?? 5,
+        width: 640,
+        height: 360,
       };
     } else {
       const parsed = clip.split("/");
@@ -70,6 +126,8 @@ export function CanvasDropZone() {
           transform: { x, y, rotation: 0, scaleX: 1, scaleY: 1 },
           startTime: 0,
           endTime: document.timeline?.duration ?? 5,
+          width: 120,
+          height: 120,
         };
       }
     }
@@ -93,12 +151,16 @@ export function CanvasDropZone() {
     const entity = document?.entities.find((item) => item.id === entityId);
     if (!entity) return;
 
+    // Use current active animated position as drag start initial baseline coordinates
+    const curX = evaluateProperty(document, entityId, "transform.x", timelineTime, entity.transform.x);
+    const curY = evaluateProperty(document, entityId, "transform.y", timelineTime, entity.transform.y);
+
     setDragState({
       entityId,
       startX: e.clientX,
       startY: e.clientY,
-      initialX: entity.transform.x,
-      initialY: entity.transform.y,
+      initialX: curX,
+      initialY: curY,
     });
   };
 
@@ -159,25 +221,39 @@ export function CanvasDropZone() {
       >
         {/* BLACK BASE LINE */}
         <div 
-          className="absolute left-0 right-0 bottom-[60px] h-[3px] bg-black opacity-80" 
+          className="absolute left-0 right-0 bottom-[60px] h-[3px] bg-black opacity-85" 
           title="Base Ground Line" 
         />
 
         {/* DYNAMIC RENDERING OF VISIBLE ENTITIES */}
         {visibleEntities.map((entity: any) => {
           const isSelected = selectedEntityIds.includes(entity.id);
+          const isDraggingThis = dragState && dragState.entityId === entity.id;
+
+          // Resolve animated transformations
+          const x = isDraggingThis 
+            ? entity.transform.x 
+            : evaluateProperty(document, entity.id, "transform.x", timelineTime, entity.transform.x);
+          const y = isDraggingThis 
+            ? entity.transform.y 
+            : evaluateProperty(document, entity.id, "transform.y", timelineTime, entity.transform.y);
+          const rotation = evaluateProperty(document, entity.id, "transform.rotation", timelineTime, entity.transform.rotation ?? 0);
+          const scaleX = evaluateProperty(document, entity.id, "transform.scaleX", timelineTime, entity.transform.scaleX ?? 1);
+          const scaleY = evaluateProperty(document, entity.id, "transform.scaleY", timelineTime, entity.transform.scaleY ?? 1);
+          const width = evaluateProperty(document, entity.id, "width", timelineTime, entity.width ?? 120);
+          const height = evaluateProperty(document, entity.id, "height", timelineTime, entity.height ?? 120);
 
           // 1. SPRITE RENDER (Stickman character actions or standard prop assets)
           if (entity.type === "sprite") {
-            const clip = entity.clip || "";
+            const clip = evaluateProperty(document, entity.id, "spriteAnimation.clip", timelineTime, entity.clip || "");
             let frameSrc = "";
 
             if (clip.startsWith("extras/prop/")) {
               const propName = clip.split("/").pop()!;
-              frameSrc = `/sprites/Props/${propName}`;
+              frameSrc = `/sprites/Extras/${propName}`; // FIXED: mapped to Extras
             } else if (clip.startsWith("extras/background/")) {
               const bgName = clip.split("/").pop()!;
-              frameSrc = `/sprites/Backgrounds/${bgName}`;
+              frameSrc = `/sprites/Extras/${bgName}`; // FIXED: mapped to Extras
             } else {
               const parsed = clip.split("/");
               if (parsed.length === 2) {
@@ -199,11 +275,13 @@ export function CanvasDropZone() {
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
                 style={{
                   position: "absolute",
-                  left: `${entity.transform.x}px`,
-                  top: `${entity.transform.y}px`,
-                  transform: "translate(-50%, -100%)", // base anchor
+                  left: `${x}px`,
+                  top: `${y}px`,
+                  width: `${width}px`,
+                  height: `${height}px`,
+                  transform: `translate(-50%, -100%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
                 }}
-                className={`p-1.5 cursor-grab active:cursor-grabbing rounded transition-shadow ${
+                className={`cursor-grab active:cursor-grabbing rounded transition-shadow overflow-hidden ${
                   isSelected
                     ? "outline-2 outline-dashed outline-sky-400 bg-sky-500/10 shadow-lg shadow-sky-500/10"
                     : "hover:outline-1 hover:outline-dashed hover:outline-muted-foreground/30"
@@ -213,13 +291,13 @@ export function CanvasDropZone() {
                   <img
                     src={frameSrc}
                     style={{
-                      height: `${entity.width ?? 120}px`,
-                      width: "auto",
+                      width: "100%",
+                      height: "100%",
                     }}
                     className="object-contain pointer-events-none select-none"
                     alt={entity.name}
                     onError={(e) => {
-                      // Fallback in case of asset path issues
+                      // fallback for asset path mismatch
                       (e.target as HTMLElement).style.display = "none";
                     }}
                   />
@@ -234,19 +312,24 @@ export function CanvasDropZone() {
 
           // 2. TEXT RENDER
           if (entity.type === "text") {
+            const text = evaluateProperty(document, entity.id, "text", timelineTime, entity.text || "");
+            const fontSize = evaluateProperty(document, entity.id, "fontSize", timelineTime, entity.fontSize ?? 24);
+            const color = evaluateProperty(document, entity.id, "color", timelineTime, entity.color ?? "#000000");
+
             return (
               <div
                 key={entity.id}
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
                 style={{
                   position: "absolute",
-                  left: `${entity.transform.x}px`,
-                  top: `${entity.transform.y}px`,
-                  fontSize: `${entity.fontSize ?? 24}px`,
-                  color: entity.color ?? "#000000",
+                  left: `${x}px`,
+                  top: `${y}px`,
+                  fontSize: `${fontSize}px`,
+                  color: color,
                   fontFamily: "var(--font-sans), sans-serif",
                   fontWeight: "bold",
                   whiteSpace: "nowrap",
+                  transform: `rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
                 }}
                 className={`px-3 py-1 cursor-grab active:cursor-grabbing rounded transition-shadow select-none ${
                   isSelected
@@ -254,24 +337,26 @@ export function CanvasDropZone() {
                     : "hover:outline-1 hover:outline-dashed hover:outline-muted-foreground/30"
                 }`}
               >
-                {entity.text}
+                {text}
               </div>
             );
           }
 
           // 3. IMAGE RENDER (Custom Base64 uploads)
           if (entity.type === "image") {
+            const height = evaluateProperty(document, entity.id, "height", timelineTime, entity.height ?? 120);
+
             return (
               <div
                 key={entity.id}
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
                 style={{
                   position: "absolute",
-                  left: `${entity.transform.x}px`,
-                  top: `${entity.transform.y}px`,
-                  width: `${entity.width ?? 120}px`,
-                  height: `${entity.height ?? 120}px`,
-                  transform: "translate(-50%, -100%)", // base anchor
+                  left: `${x}px`,
+                  top: `${y}px`,
+                  width: `${width}px`,
+                  height: `${height}px`,
+                  transform: `translate(-50%, -100%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
                 }}
                 className={`cursor-grab active:cursor-grabbing rounded transition-shadow overflow-hidden ${
                   isSelected

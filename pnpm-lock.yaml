@@ -263,6 +263,9 @@ importers:
       '@stickman/config':
         specifier: workspace:*
         version: link:../config
+      '@types/matter-js':
+        specifier: ^0.20.2
+        version: 0.20.2
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -2158,6 +2161,9 @@ packages:
 
   '@types/earcut@3.0.0':
     resolution: {integrity: sha512-k/9fOUGO39yd2sCjrbAJvGDEQvRwRnQIZlBz43roGwUZo5SHAmyVvSFyaVVZkicRVCaDXPKlbxrUcBuJoSWunQ==}
+
+  '@types/matter-js@0.20.2':
+    resolution: {integrity: sha512-3PPKy3QxvZ89h9+wdBV2488I1JLVs7DEpIkPvgO8JC1mUdiVSO37ZIvVctOTD7hIq8OAL2gJ3ugGSuUip6DhCw==}
 
   '@types/node@22.19.19':
     resolution: {integrity: sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==}
@@ -5479,6 +5485,8 @@ snapshots:
     optional: true
 
   '@types/earcut@3.0.0': {}
+
+  '@types/matter-js@0.20.2': {}
 
   '@types/node@22.19.19':
     dependencies:

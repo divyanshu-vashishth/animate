@@ -15,7 +15,7 @@ export function InspectorPanel({ className }: { className?: string }) {
   const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
 
-  const duration = document?.timeline?.duration ?? 5;
+  const duration = document?.timeline?.duration ?? 10;
   const entityId = selectedEntityIds[0];
   const entity = document?.entities.find((item) => item.id === entityId);
 
@@ -128,6 +128,49 @@ export function InspectorPanel({ className }: { className?: string }) {
               className="h-7.5 text-xs font-semibold"
             />
 
+            <Label htmlFor="inp-rot" className="text-muted-foreground">Rotation</Label>
+            <div className="flex items-center gap-2">
+              <input
+                id="inp-rot"
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={entity.transform.rotation ?? 0}
+                onChange={(e) => updateTransform("rotation", Number(e.target.value))}
+                className="h-1.5 flex-1 accent-primary rounded bg-neutral-900 cursor-pointer"
+              />
+              <Input
+                type="number"
+                value={entity.transform.rotation ?? 0}
+                onChange={(e) => updateTransform("rotation", Number(e.target.value))}
+                className="h-7.5 w-12 shrink-0 text-center text-xs font-semibold p-1"
+              />
+              <span className="text-[10px] font-bold text-muted-foreground shrink-0">deg</span>
+            </div>
+
+            <Label className="text-muted-foreground">Flip Sprite</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={entity.transform.scaleX === -1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateTransform("scaleX", entity.transform.scaleX === -1 ? 1 : -1)}
+                className="flex-1 text-[10px] h-7 font-semibold"
+              >
+                Horizontal
+              </Button>
+              <Button
+                type="button"
+                variant={entity.transform.scaleY === -1 ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateTransform("scaleY", entity.transform.scaleY === -1 ? 1 : -1)}
+                className="flex-1 text-[10px] h-7 font-semibold"
+              >
+                Vertical
+              </Button>
+            </div>
+
             {/* Custom image dimensions */}
             {entity.type === "image" && (
               <>
@@ -153,19 +196,34 @@ export function InspectorPanel({ className }: { className?: string }) {
 
             {entity.type === "sprite" && (
               <>
-                <Label htmlFor="inp-sprite-w" className="text-muted-foreground">Size px</Label>
+                <Label htmlFor="inp-sprite-w" className="text-muted-foreground">Width px</Label>
                 <div className="flex items-center gap-2">
                   <input
                     id="inp-sprite-w"
                     type="range"
-                    min={40}
-                    max={400}
+                    min={10}
+                    max={640}
                     step={5}
                     value={(entity as any).width ?? 120}
                     onChange={(e) => updateProperty("width", Number(e.target.value))}
                     className="h-1.5 flex-1 accent-primary rounded bg-neutral-900 cursor-pointer"
                   />
                   <span className="w-10 font-black text-right">{(entity as any).width ?? 120}px</span>
+                </div>
+
+                <Label htmlFor="inp-sprite-h" className="text-muted-foreground">Height px</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="inp-sprite-h"
+                    type="range"
+                    min={10}
+                    max={400}
+                    step={5}
+                    value={(entity as any).height ?? 120}
+                    onChange={(e) => updateProperty("height", Number(e.target.value))}
+                    className="h-1.5 flex-1 accent-primary rounded bg-neutral-900 cursor-pointer"
+                  />
+                  <span className="w-10 font-black text-right">{(entity as any).height ?? 120}px</span>
                 </div>
               </>
             )}

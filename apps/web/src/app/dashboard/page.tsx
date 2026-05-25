@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@stickman/auth/client";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { api } from "@/lib/api";
 import {
   IconMovie,
@@ -50,7 +45,8 @@ export default function DashboardPage() {
   
   // Collapse and Theme States
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
   // Upload States
   const [uploading, setUploading] = useState(false);
@@ -58,11 +54,6 @@ export default function DashboardPage() {
 
   const { data: session, isPending } = authClient.useSession();
 
-  // Load Theme on Mount
-  useEffect(() => {
-    const isDark = window.document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
 
   // Auto-collapse sidebar on smaller screens
   useEffect(() => {
@@ -77,17 +68,9 @@ export default function DashboardPage() {
   }, []);
 
   const toggleTheme = () => {
-    if (theme === "dark") {
-      window.document.documentElement.classList.remove("dark");
-      setTheme("light");
-      localStorage.setItem("theme", "light");
-      toast.success("Switched to Light Mode");
-    } else {
-      window.document.documentElement.classList.add("dark");
-      setTheme("dark");
-      localStorage.setItem("theme", "dark");
-      toast.success("Switched to Dark Mode");
-    }
+    const nextTheme = isDarkMode ? "light" : "dark";
+    setTheme(nextTheme);
+    toast.success(`Switched to ${nextTheme === "dark" ? "Dark" : "Light"} Mode`);
   };
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -323,7 +306,7 @@ export default function DashboardPage() {
                 }}
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-150"
               >
-                {theme === "dark" ? (
+                {isDarkMode ? (
                   <>
                     <IconSun className="h-4 w-4 text-amber-500 shrink-0" />
                     <span>Light Mode</span>

@@ -17,6 +17,7 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 
 export function Toolbar() {
   const projectId = useEditorStore((s) => s.projectId);
@@ -28,26 +29,14 @@ export function Toolbar() {
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
   const setInspectorCollapsed = useEditorStore((s) => s.setInspectorCollapsed);
 
-  // Local theme state
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-
-  useEffect(() => {
-    const isDark = window.document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
+  // Collapse and Theme States
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
   const toggleTheme = () => {
-    if (theme === "dark") {
-      window.document.documentElement.classList.remove("dark");
-      setTheme("light");
-      localStorage.setItem("theme", "light");
-      toast.success("Switched to Light Mode");
-    } else {
-      window.document.documentElement.classList.add("dark");
-      setTheme("dark");
-      localStorage.setItem("theme", "dark");
-      toast.success("Switched to Dark Mode");
-    }
+    const nextTheme = isDarkMode ? "light" : "dark";
+    setTheme(nextTheme);
+    toast.success(`Switched to ${nextTheme === "dark" ? "Dark" : "Light"} Mode`);
   };
 
   const handleSave = async () => {
@@ -65,7 +54,7 @@ export function Toolbar() {
   };
 
   // Adjust timeline project duration in seconds
-  const currentDuration = document?.timeline?.duration ?? 5;
+  const currentDuration = document?.timeline?.duration ?? 10;
 
   const handleDurationChange = (change: number) => {
     if (!document) return;
@@ -74,7 +63,7 @@ export function Toolbar() {
     // Scale or cap entities that fall outside the new duration
     const adjustedEntities = document.entities.map((ent: any) => {
       const start = ent.startTime ?? 0;
-      const end = ent.endTime ?? 5;
+      const end = ent.endTime ?? 10;
       return {
         ...ent,
         startTime: Math.min(start, newDuration),
@@ -161,9 +150,9 @@ export function Toolbar() {
           size="icon-xs"
           className="h-8 w-8 hover:text-primary rounded-md"
           onClick={toggleTheme}
-          title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
-          {theme === "dark" ? (
+          {isDarkMode ? (
             <IconSun className="h-4.5 w-4.5" />
           ) : (
             <IconMoon className="h-4.5 w-4.5" />

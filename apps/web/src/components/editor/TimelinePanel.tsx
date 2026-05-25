@@ -23,7 +23,7 @@ export function TimelinePanel() {
   const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
 
-  const duration = document?.timeline?.duration ?? 5;
+  const duration = document?.timeline?.duration ?? 10;
 
   // 60FPS Continuous Playhead animation loop ticker
   useEffect(() => {
@@ -86,7 +86,7 @@ export function TimelinePanel() {
   return (
     <div className="flex h-56 flex-col bg-card/60 backdrop-blur-md select-none border-t border-border/50">
       {/* 1. TIMELINE CONTROLLERS BAR */}
-      <div className="flex h-11 items-center justify-between border-b border-border/40 px-4 bg-muted/20">
+      <div className="flex h-11 items-center justify-between border-b border-border/40 px-4 bg-muted/20 shrink-0">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -140,32 +140,32 @@ export function TimelinePanel() {
         </div>
       </div>
 
-      {/* 2. TRACKS GRID AND TICK MARKS RULER */}
+      {/* 2. TRACKS GRID AND TICK MARKS RULER WITH UNIFIED SCROLL */}
       <div className="flex flex-1 min-h-0 overflow-y-auto">
         
         {/* Track Headers Sidebar Column */}
         <div className="w-52 shrink-0 border-r border-border/40 flex flex-col bg-card/25">
           {/* Header spacer aligned with ruler */}
-          <div className="h-7 border-b border-border/40 px-3 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 bg-muted/10">
+          <div className="h-7 shrink-0 border-b border-border/40 px-3 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 bg-muted/10">
             <span>Layers & Tracks</span>
             <span>Type</span>
           </div>
 
-          <div className="flex-1 flex flex-col divide-y divide-border/20 overflow-y-auto">
+          <div className="flex flex-col divide-y divide-border/20">
             {entities.map((ent: any) => {
               const isSelected = selectedEntityIds.includes(ent.id);
               return (
                 <div
                   key={ent.id}
                   onClick={() => setSelectedEntity(ent.id)}
-                  className={`h-9 flex items-center gap-2.5 px-3 cursor-pointer text-xs font-semibold transition-all duration-150 ${
+                  className={`h-9 shrink-0 flex items-center gap-2.5 px-3 cursor-pointer text-xs font-semibold transition-all duration-150 ${
                     isSelected 
                       ? "bg-primary/10 border-l-2 border-primary text-primary" 
                       : "hover:bg-accent/30 text-foreground/80"
                   }`}
                 >
                   {getEntityIcon(ent.type)}
-                  <span className="truncate flex-1 select-none leading-none capitalize">
+                  <span className="truncate flex-1 select-none leading-none capitalize text-[11px]">
                     {ent.name || ent.text || ent.clip || "Untitled Clip"}
                   </span>
                 </div>
@@ -184,7 +184,7 @@ export function TimelinePanel() {
         <div className="flex-1 flex flex-col relative bg-neutral-950/5 overflow-x-hidden min-w-0">
           
           {/* Ruler tick marks spacer */}
-          <div className="h-7 border-b border-border/40 flex relative bg-muted/15">
+          <div className="h-7 shrink-0 border-b border-border/40 flex relative bg-muted/15">
             {Array.from({ length: Math.ceil(duration) + 1 }).map((_, i) => (
               <div 
                 key={i} 
@@ -205,7 +205,7 @@ export function TimelinePanel() {
           </div>
 
           {/* Entity Visual Tracks list */}
-          <div className="flex-1 flex flex-col divide-y divide-border/20 relative">
+          <div className="flex flex-col divide-y divide-border/20 relative">
             
             {/* Playhead sweep line aligned with tracks */}
             <div 
@@ -224,7 +224,7 @@ export function TimelinePanel() {
                 <div
                   key={ent.id}
                   onClick={() => setSelectedEntity(ent.id)}
-                  className={`h-9 relative flex items-center px-4 cursor-pointer transition-colors ${
+                  className={`h-9 shrink-0 relative flex items-center px-4 cursor-pointer transition-colors ${
                     isSelected ? "bg-primary/5" : "hover:bg-accent/10"
                   }`}
                 >

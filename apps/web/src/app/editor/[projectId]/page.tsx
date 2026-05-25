@@ -7,6 +7,7 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { CanvasDropZone } from "@/components/editor/CanvasDropZone";
 import { TimelinePanel } from "@/components/editor/TimelinePanel";
 import { InspectorPanel } from "@/components/editor/InspectorPanel";
+import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
 import { AUTOSAVE_DEBOUNCE_MS, spriteManifest } from "@stickman/shared";
@@ -20,7 +21,8 @@ import {
   IconUpload, 
   IconCheck, 
   IconRefresh,
-  IconSparkles
+  IconSparkles,
+  IconBraces
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,6 +56,8 @@ export default function EditorPage() {
   // AI Prompt builder states
   const [aiPrompt, setAiPrompt] = useState("fighter performs a run and slash attack");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [enhancedPrompt, setEnhancedPrompt] = useState("");
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Load project document from Hono API
   useEffect(() => {
@@ -196,7 +200,23 @@ export default function EditorPage() {
         layerId: document.layers[0]?.id || "default-layer",
         clip,
         transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
-        width: 120, // default editable size
+        width: 120,
+        height: 120,
+        startTime: 0,
+        endTime: document.timeline?.duration ?? 5,
+      };
+    } else if (clip.startsWith("extras/background/")) {
+      const filename = clip.split("/").pop()!;
+      const cleanName = filename.replace(".png", "");
+      newEntity = {
+        id: crypto.randomUUID(),
+        type: "sprite" as const,
+        name: cleanName,
+        layerId: document.layers[0]?.id || "default-layer",
+        clip,
+        transform: { x: 320, y: 360, rotation: 0, scaleX: 1, scaleY: 1 },
+        width: 640,
+        height: 360,
         startTime: 0,
         endTime: document.timeline?.duration ?? 5,
       };
@@ -211,7 +231,8 @@ export default function EditorPage() {
           layerId: document.layers[0]?.id || "default-layer",
           clip,
           transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
-          width: 120, // default editable size
+          width: 120,
+          height: 120,
           startTime: 0,
           endTime: document.timeline?.duration ?? 5,
         };
@@ -229,86 +250,103 @@ export default function EditorPage() {
     }
   };
 
-  // Natural Language AI Motion Generator
-  const handleAiGenerate = async () => {
+  // AI storyboard and layers generator
+  const handleEnhanceScript = async () => {
     if (!aiPrompt.trim()) {
       toast.error("Please enter a scene prompt first");
       return;
     }
-    setAiGenerating(true);
-    toast.info("AI Copilot is formulating procedural keyframes...");
-
+    setIsEnhancing(true);
+    toast.info("AI is enhancing your script with time frames and motions...");
     try {
-      // 1. Try invoking standard backend API
-      try {
-        const res = await api.generateAnimation(aiPrompt, selectedEntityIds[0]);
-        if (res && res.timeline) {
-          toast.success("Animation merged from AI backend!");
-        }
-      } catch (e) {
-        console.warn("Backend AI not responsive, triggering custom procedural compiler.", e);
-      }
-
-      // 2. High-Fidelity Local Procedural Motion Engine
-      const promptLower = aiPrompt.toLowerCase();
-      let character = "fighter";
-      let action = "idle";
-
-      // Detect character type
-      if (promptLower.includes("pistol") || promptLower.includes("gun") || promptLower.includes("shoot")) {
-        character = "pistol";
-      } else if (promptLower.includes("sword") || promptLower.includes("slash") || promptLower.includes("weapon")) {
-        character = "sword";
-      }
-
-      // Detect animation pose
-      if (promptLower.includes("run") || promptLower.includes("walk") || promptLower.includes("slide")) {
-        action = "run";
-      } else if (promptLower.includes("slash") || promptLower.includes("attack") || promptLower.includes("cut")) {
-        action = "slash";
-      } else if (promptLower.includes("shoot") || promptLower.includes("fire")) {
-        action = "shoot";
-      } else if (promptLower.includes("jump") || promptLower.includes("flip")) {
-        action = "jump";
-      }
-
-      // Build target location based on action descriptors
-      let startX = 320;
-      let startY = 300;
-      if (promptLower.includes("left to right") || action === "run") {
-        startX = 120; // Starts left, runs forward
-      }
-
-      const newAiEntity = {
-        id: crypto.randomUUID(),
-        type: "sprite" as const,
-        name: `AI ${character} (${action})`,
-        layerId: document.layers[0]?.id || "default-layer",
-        clip: `${character}/${action}`,
-        transform: { 
-          x: startX, 
-          y: startY, 
-          rotation: 0, 
-          scaleX: 1, 
-          scaleY: 1 
-        },
-        width: 140, // premium visual size
-        startTime: 0,
-        endTime: document.timeline?.duration ?? 5,
+      const availableSprites = {
+        characters: ["fighter", "pistol", "sword"],
+        props: spriteManifest.props,
+        backgrounds: spriteManifest.backgrounds,
       };
+      const customUploads = document.entities
+        .filter((e: any) => e.type === "image")
+        .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
 
-      const updated = [...document.entities, newAiEntity];
-      setDocument({
-        ...document,
-        entities: updated,
-      });
-      setSelectedEntity(newAiEntity.id);
-      toast.success(`AI generated a new procedurally-aligned ${character} layer performing "${action}"!`);
-    } catch {
-      toast.error("Failed to generate AI layer.");
+      const res = await api.enhanceScript(aiPrompt, availableSprites, customUploads);
+      setEnhancedPrompt(res.enhanced);
+      toast.success("Script enhanced! You can now compile the layers.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to enhance script");
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleGenerateLayers = async () => {
+    if (!enhancedPrompt.trim()) {
+      toast.error("Please enhance the script or input a storyboard first");
+      return;
+    }
+    setAiGenerating(true);
+    toast.info("Compiling advanced JSON timelines & keyframes...");
+    try {
+      const availableSprites = {
+        characters: ["fighter", "pistol", "sword"],
+        props: spriteManifest.props,
+        backgrounds: spriteManifest.backgrounds,
+      };
+      const customUploads = document.entities
+        .filter((e: any) => e.type === "image")
+        .map((e: any) => ({ name: e.name, type: e.type, src: e.src, width: e.width, height: e.height }));
+
+      const docData = await api.generateAiLayers(enhancedPrompt, availableSprites, customUploads);
+      if (docData && docData.layers && docData.entities) {
+        setDocument({
+          ...document,
+          layers: docData.layers,
+          entities: docData.entities,
+          timeline: docData.timeline || document.timeline
+        });
+        toast.success("Generated complex AI layers and movement keyframes successfully!");
+      } else {
+        throw new Error("Invalid layer response structure");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate AI layers");
     } finally {
       setAiGenerating(false);
     }
+  };
+
+  // Helper to resolve dynamic keyframe properties for the scene exporter
+  const evaluateProperty = (document: any, entityId: string, property: string, time: number, defaultValue: any) => {
+    if (!document || !document.timeline || !document.timeline.tracks) {
+      return defaultValue;
+    }
+    const track = document.timeline.tracks.find(
+      (t: any) => t.entityId === entityId && t.property === property
+    );
+    if (!track || !track.keyframes || track.keyframes.length === 0) {
+      return defaultValue;
+    }
+
+    const keyframes = [...track.keyframes].sort((a, b) => a.time - b.time);
+
+    if (time <= keyframes[0].time) {
+      return keyframes[0].value;
+    }
+    if (time >= keyframes[keyframes.length - 1].time) {
+      return keyframes[keyframes.length - 1].value;
+    }
+
+    for (let i = 0; i < keyframes.length - 1; i++) {
+      const kfA = keyframes[i];
+      const kfB = keyframes[i + 1];
+      if (time >= kfA.time && time <= kfB.time) {
+        if (typeof kfA.value === "number" && typeof kfB.value === "number") {
+          const ratio = (time - kfA.time) / (kfB.time - kfA.time);
+          return kfA.value + (kfB.value - kfA.value) * ratio;
+        }
+        return kfA.value;
+      }
+    }
+    return defaultValue;
   };
 
   // Synchronous Offscreen Canvas Scene Painter
@@ -332,29 +370,44 @@ export default function EditorPage() {
     });
 
     // 4. Render layers sequentially
-    for (const entity of visible) {
+    for (const ent of visible) {
+      const entity = ent as any;
+      // Evaluate animated properties from timeline tracks
+      const x = evaluateProperty(document, entity.id, "transform.x", time, entity.transform.x);
+      const y = evaluateProperty(document, entity.id, "transform.y", time, entity.transform.y);
+      const rotation = evaluateProperty(document, entity.id, "transform.rotation", time, entity.transform.rotation ?? 0);
+      const scaleX = evaluateProperty(document, entity.id, "transform.scaleX", time, entity.transform.scaleX ?? 1);
+      const scaleY = evaluateProperty(document, entity.id, "transform.scaleY", time, entity.transform.scaleY ?? 1);
+      const width = evaluateProperty(document, entity.id, "width", time, entity.width ?? 120);
+      const height = evaluateProperty(document, entity.id, "height", time, entity.height ?? 120);
+
       // A. Text render
       if (entity.type === "text") {
+        const text = evaluateProperty(document, entity.id, "text", time, entity.text || "");
+        const fontSize = evaluateProperty(document, entity.id, "fontSize", time, entity.fontSize ?? 28);
+        const color = evaluateProperty(document, entity.id, "color", time, entity.color || "#000000");
+
         ctx.save();
-        ctx.translate(entity.transform.x, entity.transform.y);
-        ctx.rotate((entity.transform.rotation * Math.PI) / 180);
-        ctx.fillStyle = entity.color || "#000000";
-        ctx.font = `bold ${entity.fontSize ?? 28}px sans-serif`;
-        ctx.fillText(entity.text, 0, 0);
+        ctx.translate(x, y);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.scale(scaleX, scaleY);
+        ctx.fillStyle = color;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillText(text, 0, 0);
         ctx.restore();
       }
 
       // B. Sprite render (Transparent actions / Props)
       if (entity.type === "sprite") {
-        const clip = entity.clip || "";
+        const clip = evaluateProperty(document, entity.id, "spriteAnimation.clip", time, entity.clip || "");
         let frameSrc = "";
 
         if (clip.startsWith("extras/prop/")) {
           const propName = clip.split("/").pop()!;
-          frameSrc = `/sprites/Props/${propName}`;
+          frameSrc = `/sprites/Extras/${propName}`; // FIXED: Extras folder mapping
         } else if (clip.startsWith("extras/background/")) {
           const bgName = clip.split("/").pop()!;
-          frameSrc = `/sprites/Backgrounds/${bgName}`;
+          frameSrc = `/sprites/Extras/${bgName}`; // FIXED: Extras folder mapping
         } else {
           const parsed = clip.split("/");
           if (parsed.length === 2) {
@@ -380,21 +433,19 @@ export default function EditorPage() {
           });
 
           ctx.save();
-          ctx.translate(entity.transform.x, entity.transform.y);
-          ctx.rotate((entity.transform.rotation * Math.PI) / 180);
+          ctx.translate(x, y);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.scale(scaleX, scaleY);
 
-          const spriteSize = entity.width ?? 120;
-          const aspect = img.width / (img.height || 1);
-          const w = spriteSize * aspect;
-          const h = spriteSize;
           // Draw with base translate offset (centered horizontally, anchored at bottom)
-          ctx.drawImage(img, -w / 2, -h, w, h);
+          ctx.drawImage(img, -width / 2, -height, width, height);
           ctx.restore();
         }
       }
 
       // C. Base64 Uploaded images render
       if (entity.type === "image" && entity.src) {
+        const height = evaluateProperty(document, entity.id, "height", time, entity.height ?? 120);
         const img = new Image();
         img.src = entity.src;
         await new Promise((res) => {
@@ -403,11 +454,10 @@ export default function EditorPage() {
         });
 
         ctx.save();
-        ctx.translate(entity.transform.x, entity.transform.y);
-        ctx.rotate((entity.transform.rotation * Math.PI) / 180);
-        const w = entity.width ?? 140;
-        const h = entity.height ?? 140;
-        ctx.drawImage(img, -w / 2, -h, w, h);
+        ctx.translate(x, y);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.scale(scaleX, scaleY);
+        ctx.drawImage(img, -width / 2, -height, width, height);
         ctx.restore();
       }
     }
@@ -463,7 +513,7 @@ export default function EditorPage() {
     setExportProgress(0);
     recorder.start();
 
-    const duration = document.timeline?.duration ?? 5;
+    const duration = document.timeline?.duration ?? 10;
     const totalFrames = Math.ceil(duration * 30);
     let currentFrame = 0;
 
@@ -594,6 +644,20 @@ export default function EditorPage() {
           >
             <IconDownload className="h-5 w-5" />
             <span className="text-[8px] font-bold mt-1">Export</span>
+          </button>
+
+          {/* JSON Explorer tab */}
+          <button
+            onClick={() => handleTabClick("json")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+              leftPanelTab === "json"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            }`}
+            title="JSON Document Explorer"
+          >
+            <IconBraces className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">JSON</span>
           </button>
         </div>
 
@@ -750,84 +814,45 @@ export default function EditorPage() {
             {/* TAB 3: MEDIA LIBRARY */}
             {leftPanelTab === "image" && (
               <div className="flex flex-col h-full">
-                <div className="h-11 border-b border-border/30 px-2 flex items-center justify-center gap-1 bg-muted/10">
+                <div className="h-11 shrink-0 border-b border-border/30 px-2 flex items-center justify-center gap-1 bg-muted/10">
                   <button
                     onClick={() => setMediaSubTab("characters")}
-                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${mediaSubTab === "characters" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded transition-all duration-150 ${mediaSubTab === "characters" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
                   >
-                    Your Media
+                    Asset Explorer
                   </button>
                   <button
                     onClick={() => setMediaSubTab("upload")}
-                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded ${mediaSubTab === "upload" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                    className={`flex-1 text-[10px] py-1 text-center font-bold rounded transition-all duration-150 ${mediaSubTab === "upload" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
                   >
-                    Upload New
+                    Custom Uploads
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 text-xs font-semibold flex flex-col gap-4">
+                <div className="flex-1 min-h-0 flex flex-col">
                   {mediaSubTab === "upload" ? (
-                    <div className="flex flex-col gap-3">
-                      <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
-                        Upload custom photos
-                      </Label>
-                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-2">
-                        <IconUpload className="h-6 w-6 text-muted-foreground" />
-                        <span className="text-[10px] font-bold text-muted-foreground">Upload Photo</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoUpload}
-                          className="hidden"
-                        />
-                      </label>
+                    <div className="flex-1 overflow-y-auto p-4 text-xs font-semibold flex flex-col gap-4">
+                      <div className="flex flex-col gap-3">
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                          Upload custom photos
+                        </Label>
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-2">
+                          <IconUpload className="h-6 w-6 text-muted-foreground" />
+                          <span className="text-[10px] font-bold text-muted-foreground">Upload Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[9px] text-muted-foreground/70 leading-relaxed p-1 select-none">
+                          💡 You can upload absolute transparent PNG/JPG files here to overlay onto the canvas directly.
+                        </p>
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3">
-                      {/* Character Lists */}
-                      <div className="flex flex-col gap-1">
-                        <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 px-1 mb-1.5">
-                          Characters
-                        </h4>
-                        
-                        {Object.entries(spriteManifest.characters).map(([character, actions]) => (
-                          <div key={character} className="flex flex-col gap-1.5 mb-2.5">
-                            <span className="capitalize text-[11px] font-extrabold text-foreground px-1 border-l-2 border-primary/40 pl-2">
-                              {character}
-                            </span>
-                            <div className="grid grid-cols-2 gap-1.5 pl-1.5">
-                              {Object.keys(actions).map((action) => (
-                                <button
-                                  key={action}
-                                  onClick={() => handleAddSprite(`${character}/${action}`)}
-                                  className="p-1.5 border border-border/30 rounded-lg hover:border-primary hover:bg-primary/5 text-left truncate capitalize text-[10px]"
-                                >
-                                  {action}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Props list */}
-                      <div className="flex flex-col gap-1 mt-2">
-                        <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 px-1 mb-1.5">
-                          Props
-                        </h4>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {spriteManifest.props.slice(0, 10).map((prop) => (
-                            <button
-                              key={prop}
-                              onClick={() => handleAddSprite(`extras/prop/${prop}`)}
-                              className="p-1.5 border border-border/30 rounded-lg hover:border-primary hover:bg-primary/5 text-left truncate capitalize text-[10px]"
-                            >
-                              {prop.replace(".png", "")}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    <AssetsPanel className="flex-1 min-h-0" />
                   )}
                 </div>
               </div>
@@ -837,43 +862,88 @@ export default function EditorPage() {
             {leftPanelTab === "ai" && (
               <div className="flex flex-col h-full">
                 <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                  AI Animation Generator
+                  AI Animation Studio
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
-                  <div className="flex flex-col gap-3">
-                    <Label htmlFor="ai-prompt-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
-                      Describe Animation Scene
-                    </Label>
+                  
+                  {/* STEP 1: SCRIPT ENHANCER */}
+                  <div className="flex flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20">
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+                        1
+                      </span>
+                      <Label htmlFor="ai-prompt-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground select-none">
+                        Describe Animation Idea
+                      </Label>
+                    </div>
                     <textarea
                       id="ai-prompt-input"
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="e.g. Fighter running from left to right and jumping..."
-                      className="w-full h-24 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary text-xs"
+                      placeholder="e.g. fighter runs from left, encounters sword stickman, jumps and strikes..."
+                      className="w-full h-20 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary text-xs resize-none"
                     />
                     
                     <Button
-                      onClick={handleAiGenerate}
-                      disabled={aiGenerating}
-                      className="w-full h-9 font-extrabold gap-1.5 shadow-md shadow-primary/10 hover:scale-[1.01] transition-transform"
+                      onClick={handleEnhanceScript}
+                      disabled={isEnhancing}
+                      className="w-full h-8 text-[11px] font-extrabold gap-1.5 shadow-md"
                     >
-                      {aiGenerating ? (
+                      {isEnhancing ? (
                         <>
-                          <IconRefresh className="h-4 w-4 animate-spin" />
-                          Generating...
+                          <IconRefresh className="h-3.5 w-3.5 animate-spin" />
+                          Enhancing Script...
                         </>
                       ) : (
                         <>
-                          <IconSparkles className="h-4 w-4 shrink-0 text-amber-300 fill-amber-300" />
+                          <IconSparkles className="h-3.5 w-3.5 text-amber-300 fill-amber-300" />
+                          Enhance Script with AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* STEP 2: STORYBOARD & LAYER COMPILES */}
+                  <div className="flex flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20">
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+                        2
+                      </span>
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground select-none">
+                        Review Storyboard & Timeline
+                      </Label>
+                    </div>
+                    
+                    <textarea
+                      value={enhancedPrompt}
+                      onChange={(e) => setEnhancedPrompt(e.target.value)}
+                      placeholder="Click Step 1 above to generate an enhanced storyboard timeline here, or write your own time-coded bullet points..."
+                      className="w-full h-40 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary text-xs resize-none text-[11px] leading-relaxed"
+                    />
+
+                    <Button
+                      onClick={handleGenerateLayers}
+                      disabled={aiGenerating || !enhancedPrompt.trim()}
+                      variant={enhancedPrompt.trim() ? "default" : "secondary"}
+                      className="w-full h-8 text-[11px] font-extrabold gap-1.5 shadow-md"
+                    >
+                      {aiGenerating ? (
+                        <>
+                          <IconRefresh className="h-3.5 w-3.5 animate-spin" />
+                          Compiling Layers...
+                        </>
+                      ) : (
+                        <>
+                          <IconSparkles className="h-3.5 w-3.5 text-sky-400 fill-sky-400" />
                           Generate AI Layers
                         </>
                       )}
                     </Button>
-                    
-                    <p className="text-[9px] text-muted-foreground/75 leading-relaxed bg-muted/25 p-2.5 rounded border border-border/10 select-none mt-2">
-                      💡 Tip: Include terms like "fighter", "pistol", or "sword" and actions like "run", "slash", or "shoot" to compile custom animation vectors automatically!
-                    </p>
                   </div>
+
+                  <p className="text-[9px] text-muted-foreground/75 leading-relaxed bg-muted/25 p-2.5 rounded border border-border/10 select-none">
+                    💡 Tip: Step 1 will transform a short prompt like "two guys running" into a detailed storyboard. Step 2 parses it to place characters on the baseline and animates them using timeline keyframes automatically!
+                  </p>
                 </div>
               </div>
             )}
@@ -897,6 +967,32 @@ export default function EditorPage() {
                       Export Video
                     </Button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: JSON DOCUMENT EXPLORER */}
+            {leftPanelTab === "json" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground shrink-0">
+                  JSON Explorer
+                </div>
+                <div className="flex-1 overflow-hidden p-3.5 flex flex-col gap-2.5">
+                  <p className="text-[10px] text-muted-foreground leading-relaxed select-none">
+                    Raw project state document. Useful to review AI keyframes, scale dimensions, and layer structures.
+                  </p>
+                  <div className="flex-1 min-h-0 relative bg-neutral-950/70 border border-border/40 rounded-lg p-2.5 font-mono text-[9px] text-emerald-400 overflow-auto select-text select-all">
+                    <pre className="whitespace-pre">{JSON.stringify(document, null, 2)}</pre>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(document, null, 2));
+                      toast.success("JSON copied to clipboard!");
+                    }}
+                    className="w-full h-8 text-[11px] font-extrabold gap-1.5 shadow-md shrink-0"
+                  >
+                    Copy JSON State
+                  </Button>
                 </div>
               </div>
             )}

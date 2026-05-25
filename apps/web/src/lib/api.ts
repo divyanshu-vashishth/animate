@@ -50,6 +50,22 @@ export const api = {
       body: JSON.stringify({ prompt, entityId }),
     }),
 
+  enhanceScript: (prompt: string, availableSprites?: any, customUploads?: any) =>
+    fetchApi<{ enhanced: string }>("/ai/enhance", {
+      method: "POST",
+      body: JSON.stringify({ prompt, availableSprites, customUploads }),
+    }),
+
+  generateAiLayers: (enhancedPrompt: string, availableSprites?: any, customUploads?: any) =>
+    fetchApi<{
+      layers: any[];
+      entities: any[];
+      timeline: any;
+    }>("/ai/generate-layers", {
+      method: "POST",
+      body: JSON.stringify({ enhancedPrompt, availableSprites, customUploads }),
+    }),
+
   createRenderJob: (projectId: string, format: "mp4" | "gif" | "webm") =>
     fetchApi<{ job: { id: string; status: string } }>("/render/jobs", {
       method: "POST",
@@ -71,6 +87,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, type, url }),
     }),
+
   deleteProject: (projectId: string) =>
     fetchApi<{ ok: boolean }>(`/projects/${projectId}`, {
       method: "DELETE",

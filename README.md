@@ -51,11 +51,3 @@ Run `pnpm sprites:manifest` after adding assets.
 Copy `.env.example` to `.env` and set `DATABASE_URL` for production Postgres.
 Without `DATABASE_URL`, the API uses an in-memory dev store.
 
-## Phases implemented
-
-1. Foundation — monorepo, editor UI, Pixi canvas, layers, drag/drop, save/load
-2. Timeline — keyframes, scrubbing, GSAP bridge, transport
-3. Rig — vector stickman bones, pose library, sprite→rig conversion
-4. Export — render jobs API + FFmpeg worker stub
-5. AI — structured JSON animation generation (no eval)
-6. Advanced — physics package, templates API, collaboration stubs

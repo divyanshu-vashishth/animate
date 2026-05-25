@@ -7,6 +7,7 @@
   "dependencies": {
     "@stickman/shared": "workspace:*",
     "@stickman/timeline": "workspace:*",
+    
     "zod": "^3.25.28"
   },
   "devDependencies": {
