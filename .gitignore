@@ -9,3 +9,5 @@ dist
 coverage
 .cursor
 .antigravity
+.agents
+skills-lock.json

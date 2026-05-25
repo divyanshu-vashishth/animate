@@ -79,6 +79,22 @@ export const api = {
       `/render/jobs/${jobId}`
     ),
 
+  renderDirect: async (projectId: string, format: "mp4" | "gif" | "webm", frames: string[], fps?: number): Promise<Blob> => {
+    const res = await fetch(`${API_URL}/render/jobs/direct`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ projectId, format, frames, fps }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as { error?: string }).error ?? "API error");
+    }
+    return res.blob();
+  },
+
   listAssets: () =>
     fetchApi<{
       assets: Array<{ id: string; name: string; type: string; url: string; createdAt: string }>;

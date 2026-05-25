@@ -33,6 +33,7 @@ export default function EditorPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
   const setProject = useEditorStore((s) => s.setProject);
+  const projectName = useEditorStore((s) => s.projectName);
   const document = useEditorStore((s) => s.document);
   const setDocument = useEditorStore((s) => s.setDocument);
   const isDirty = useEditorStore((s) => s.isDirty);
@@ -46,18 +47,6 @@ export default function EditorPage() {
   const setLeftPanelTab = useEditorStore((s) => s.setLeftPanelTab);
   const inspectorCollapsed = useEditorStore((s) => s.inspectorCollapsed);
   const setInspectorCollapsed = useEditorStore((s) => s.setInspectorCollapsed);
-
-  // Local tab-specific sub-states
-  const [textVal, setTextVal] = useState("hi");
-  const [textSubTab, setTextSubTab] = useState<"add" | "list">("add");
-  const [mediaSubTab, setMediaSubTab] = useState<"upload" | "characters">("characters");
-  const [exportProgress, setExportProgress] = useState<number | null>(null);
-
-  // AI Prompt builder states
-  const [aiPrompt, setAiPrompt] = useState("fighter performs a run and slash attack");
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [enhancedPrompt, setEnhancedPrompt] = useState("");
-  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Load project document from Hono API
   useEffect(() => {
@@ -79,7 +68,6 @@ export default function EditorPage() {
     })();
   }, [projectId, router, setProject, session, isPending]);
 
-  // Debounced Autosave
   const save = useCallback(async () => {
     if (!projectId || !document || !isDirty) return;
     useEditorStore.getState().setSaving(true);
@@ -109,6 +97,19 @@ export default function EditorPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [setInspectorCollapsed, setLeftPanelTab]);
+
+  // Local tab-specific sub-states
+  const [textVal, setTextVal] = useState("hi");
+  const [textSubTab, setTextSubTab] = useState<"add" | "list">("add");
+  const [mediaSubTab, setMediaSubTab] = useState<"upload" | "characters">("characters");
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
+  const [exportStatusText, setExportStatusText] = useState("Encoding vector sequences...");
+  const [exportFormat, setExportFormat] = useState<"mp4" | "gif" | "webm">("mp4");
+  const [aiPrompt, setAiPrompt] = useState("fighter performs a run and slash attack");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [enhancedPrompt, setEnhancedPrompt] = useState("");
+  const [isEnhancing, setIsEnhancing] = useState(false);
+
 
   if (isPending || !document) {
     return (
@@ -463,46 +464,14 @@ export default function EditorPage() {
     }
   };
 
-  // High-Fidelity Canvas frame capture MediaRecorder loop
+  // Visually Lossless Offline Canvas JPEG Capture & FFmpeg server-side encoder
   const triggerExport = async () => {
     if (!document) return;
 
     // Create offscreen buffer canvas
     const canvas = window.document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 360;
-
-    let stream: MediaStream;
-    try {
-      stream = (canvas as any).captureStream(30); // 30 FPS Stream
-    } catch {
-      toast.error("Offline MediaRecorder is not supported in this browser version.");
-      return;
-    }
-
-    const chunks: Blob[] = [];
-    const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp9" });
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        chunks.push(e.data);
-      }
-    };
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: "video/webm" });
-      const url = URL.createObjectURL(blob);
-
-      const downloadAnchor = window.document.createElement("a");
-      downloadAnchor.href = url;
-      downloadAnchor.download = `stickman_animation_${Date.now()}.webm`;
-      window.document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-      URL.revokeObjectURL(url);
-      setExportProgress(null);
-      toast.success("Stickman studio animation exported as WEBM video successfully!");
-    };
+    canvas.width = 1280; // Render at premium 720p HD resolution instead of 360p
+    canvas.height = 720;
 
     // Pause player playback during capture sweep
     const originalTime = timelineTime;
@@ -511,36 +480,55 @@ export default function EditorPage() {
     useEditorStore.getState().setTimelineTime(0);
 
     setExportProgress(0);
-    recorder.start();
+    setExportStatusText("Capturing vector canvas frames...");
 
     const duration = document.timeline?.duration ?? 10;
-    const totalFrames = Math.ceil(duration * 30);
-    let currentFrame = 0;
+    const fps = 30;
+    const totalFrames = Math.ceil(duration * fps);
+    const capturedFrames: string[] = [];
 
-    const renderLoop = async () => {
-      if (currentFrame > totalFrames) {
-        recorder.stop();
-        // Restore user playhead coordinates
-        useEditorStore.getState().setTimelineTime(originalTime);
-        useEditorStore.getState().setPlaybackState(originalPlayback);
-        return;
-      }
-
+    // Capture sweep at exactly 30 FPS
+    for (let currentFrame = 0; currentFrame <= totalFrames; currentFrame++) {
       const t = (currentFrame / totalFrames) * duration;
       useEditorStore.getState().setTimelineTime(t);
 
-      // Render visuals dynamically
+      // Render visuals dynamically to offscreen canvas
       await drawSceneToCanvas(canvas, t);
+
+      // Get high-quality visually lossless JPEG Data URL (0.95 quality - 90% size reduction)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+      capturedFrames.push(dataUrl);
 
       // Adjust compiler progress bar percentage
       const pct = Math.round((currentFrame / totalFrames) * 100);
       setExportProgress(pct);
+    }
 
-      currentFrame++;
-      setTimeout(renderLoop, 33); // 33ms interval spacing
-    };
+    // Restore user playhead coordinates
+    useEditorStore.getState().setTimelineTime(originalTime);
+    useEditorStore.getState().setPlaybackState(originalPlayback);
 
-    void renderLoop();
+    setExportStatusText(`Compiling high-fidelity ${exportFormat.toUpperCase()} on server via FFmpeg...`);
+    
+    try {
+      const blob = await api.renderDirect(projectId, exportFormat, capturedFrames, fps);
+      const url = URL.createObjectURL(blob);
+
+       const downloadAnchor = window.document.createElement("a");
+       downloadAnchor.href = url;
+       downloadAnchor.download = `${projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_animation_${Date.now()}.${exportFormat}`;
+       window.document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Stickman animation exported as ${exportFormat.toUpperCase()} successfully!`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(`Export failed: ${err.message || "Renderer microservice failure."}`);
+    } finally {
+      setExportProgress(null);
+    }
   };
 
   const entities = document.entities || [];
@@ -552,11 +540,11 @@ export default function EditorPage() {
       {exportProgress !== null && (
         <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center select-none">
           <div className="bg-card/75 border border-border/40 p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
-            <div className="animate-spin text-primary mb-4">
-              <IconRefresh className="h-8 w-8" />
+            <div className="animate-spin text-primary mb-4 animate-duration-1000">
+              <IconRefresh className="h-8 w-8 animate-spin" />
             </div>
             <h3 className="font-extrabold text-foreground mb-1">Rendering Video Track</h3>
-            <p className="text-xs text-muted-foreground mb-5">Encoding vector sequences to WebM...</p>
+            <p className="text-xs text-muted-foreground mb-5 min-h-[32px]">{exportStatusText}</p>
             <div className="h-2 w-full bg-neutral-900 rounded-full overflow-hidden mb-2">
               <div 
                 className="h-full bg-primary transition-all duration-150"
@@ -954,17 +942,62 @@ export default function EditorPage() {
                 <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                   Export Studio
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 text-xs font-semibold">
                   <div className="flex flex-col gap-2">
-                    <p className="text-[10px] text-muted-foreground leading-relaxed select-none mb-4">
-                      Compile your layers, media coordinates, texts, and active timelines into a finished WebM video file directly.
+                    <p className="text-[10px] text-muted-foreground leading-relaxed select-none mb-2">
+                      Compile your layers, vector coordinates, texts, and animations into a premium high-definition video track.
                     </p>
+
+                    <div className="flex flex-col gap-2.5 bg-neutral-900/40 p-3 rounded-lg border border-border/30 mb-2">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                        Select Export Format
+                      </span>
+                      <div className="grid grid-cols-3 gap-1.5 p-1 bg-neutral-950/50 rounded-lg border border-border/20">
+                        {(["mp4", "webm", "gif"] as const).map((fmt) => (
+                          <button
+                            key={fmt}
+                            onClick={() => setExportFormat(fmt)}
+                            className={`py-1.5 rounded font-black text-[10px] tracking-wide uppercase transition-all ${
+                              exportFormat === fmt
+                                ? "bg-primary text-primary-foreground shadow"
+                                : "text-muted-foreground hover:bg-neutral-900 hover:text-foreground"
+                            }`}
+                          >
+                            {fmt}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground leading-relaxed mt-1 select-none min-h-[30px]">
+                        {exportFormat === "mp4" && "MP4 (H.264): Visually lossless vector stream. Broadcast-ready, universally supported."}
+                        {exportFormat === "webm" && "WebM (VP9): High compression, perfect for seamless modern web playback."}
+                        {exportFormat === "gif" && "GIF: Palette-optimized 256-color sequence. Ideal for animations, stickers, and instant sharing."}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 bg-neutral-900/40 p-3 rounded-lg border border-border/30 mb-4 text-[10px]">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                        Export Settings
+                      </span>
+                      <div className="flex justify-between py-1 border-b border-border/20 text-muted-foreground">
+                        <span>Resolution</span>
+                        <span className="font-bold text-foreground">1280 × 720 (HD)</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-border/20 text-muted-foreground">
+                        <span>Frame Rate</span>
+                        <span className="font-bold text-foreground">30 FPS (Constant)</span>
+                      </div>
+                      <div className="flex justify-between py-1 text-muted-foreground">
+                        <span>Processing</span>
+                        <span className="font-bold text-foreground">FFmpeg Worker</span>
+                      </div>
+                    </div>
+
                     <Button
                       onClick={triggerExport}
                       className="w-full h-9 font-black gap-1.5 shadow-lg shadow-primary/20"
                     >
                       <IconCheck className="h-4 w-4 shrink-0" />
-                      Export Video
+                      Compile & Download
                     </Button>
                   </div>
                 </div>
