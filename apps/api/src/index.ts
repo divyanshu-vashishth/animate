@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import { projectRoutes } from "./routes/projects.js";
 import { aiRoutes } from "./routes/ai.js";
 import { renderRoutes } from "./routes/render.js";
@@ -13,7 +14,8 @@ import { assetRoutes } from "./routes/assets.js";
 import { sessionMiddleware } from "./middleware/session.js";
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(sourceDir, "../../..", ".env") });
+const envPath = resolve(sourceDir, "../../..", existsSync(resolve(sourceDir, "../../..", ".env.local")) ? ".env.local" : ".env");
+config({ path: envPath });
 
 const app = new Hono();
 

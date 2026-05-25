@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as schema from "./schema.js";
@@ -8,7 +9,8 @@ import * as schema from "./schema.js";
 export * from "./schema.js";
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(sourceDir, "../../..", ".env") });
+const envPath = resolve(sourceDir, "../../..", existsSync(resolve(sourceDir, "../../..", ".env.local")) ? ".env.local" : ".env");
+config({ path: envPath });
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
