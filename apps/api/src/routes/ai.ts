@@ -109,7 +109,7 @@ If custom uploaded media assets are listed, incorporate them into the actions/st
 
     const promptMessage = `You are a master storyboarder and animator assistant. The user wants to animate a scene described as: "${body.prompt}". Enhance this simple script into a detailed, time-coded animation plan (storyboard) for a 10-second 2D stickman animation. The screen width is 640px, height is 360px, ground baseline is at Y = 300px.${assetsContext}
 Explain what characters or assets start at what times, what actions they do, and how they move (positions, flipping, rotations). Format it as a clear bullet-pointed outline with exact time frames (e.g. 0.0s - 10.0s) for each character. Keep it compact and professional.`;
-    
+
     const enhanced = await callGemini(promptMessage);
     return c.json({ enhanced });
   } catch (error: any) {
@@ -121,7 +121,14 @@ Explain what characters or assets start at what times, what actions they do, and
 // Step 2: Generate complex animation layers and keyframes
 aiRoutes.post("/generate-layers", async (c) => {
   if (!getAuthUser(c)) return c.json({ error: "Unauthorized" }, 401);
-  const body = await c.req.json<{ enhancedPrompt: string; availableSprites?: any; customUploads?: any }>();
+
+  let body: { enhancedPrompt: string; availableSprites?: any; customUploads?: any };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+
   if (!body.enhancedPrompt || !body.enhancedPrompt.trim()) {
     return c.json({ error: "Enhanced prompt/storyboard is required" }, 400);
   }
@@ -136,9 +143,9 @@ aiRoutes.post("/generate-layers", async (c) => {
 - Custom Uploaded Media: ${JSON.stringify(body.customUploads || [])}
 Important for Custom Uploads: If the storyboard mentions a custom uploaded media asset, output its entity with:
 1. "type": "image"
-2. "name": matching the custom upload's name
+2. "name": matching the custom upload's name (must match the list exactly)
 3. "clip": null
-4. "src": the exact "src" value (base64 string) of that custom upload from the list.
+4. Omit the "src" field (the client restores image data by name).
 5. "width" and "height": matching the custom upload's width/height or suitable scale.
 `;
     }
@@ -167,7 +174,7 @@ JSON Structure:
       "name": "string",
       "layerId": "string (from layers)",
       "clip": "string (e.g. 'fighter/run' for character pose, or 'extras/prop/building1.png' for props, or 'extras/background/background1.png')",
-      "src": "string (only if type is image, base64 string provided in the uploads context)",
+      "src": "omit for image entities (client restores by name)",
       "text": "string (only if type is text)",
       "transform": { "x": number (default X position), "y": number (default Y position, e.g. 300), "rotation": number (default 0), "scaleX": number (1 or -1 for horizontal flip), "scaleY": number (1 or -1) },
       "startTime": number (start time in seconds),

@@ -29,6 +29,11 @@ app.use(
 
 app.use("*", sessionMiddleware);
 
+app.onError((err, c) => {
+  console.error("Unhandled API error:", err);
+  return c.json({ error: err.message || "Internal server error" }, 500);
+});
+
 app.get("/health", (c) => c.json({ status: "ok", service: "stickman-api" }));
 
 app.route("/projects", projectRoutes);
@@ -39,6 +44,7 @@ app.route("/templates", templateRoutes);
 app.route("/realtime", realtimeRoutes);
 
 const port = parseInt(process.env.PORT ?? "4000", 10);
-console.log(`Stickman API running on http://localhost:${port}`);
+const hostname = process.env.HOST ?? "127.0.0.1";
+console.log(`Stickman API running on http://${hostname}:${port}`);
 
-serve({ fetch: app.fetch, port });
+serve({ fetch: app.fetch, port, hostname });

@@ -11,15 +11,15 @@ import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
 import { AUTOSAVE_DEBOUNCE_MS, spriteManifest } from "@stickman/shared";
-import { 
-  IconVideo, 
-  IconTypography, 
-  IconPhoto, 
-  IconDownload, 
-  IconPlus, 
-  IconTrash, 
-  IconUpload, 
-  IconCheck, 
+import {
+  IconVideo,
+  IconTypography,
+  IconPhoto,
+  IconDownload,
+  IconPlus,
+  IconTrash,
+  IconUpload,
+  IconCheck,
   IconRefresh,
   IconSparkles,
   IconBraces
@@ -294,14 +294,24 @@ export default function EditorPage() {
       };
       const customUploads = document.entities
         .filter((e: any) => e.type === "image")
-        .map((e: any) => ({ name: e.name, type: e.type, src: e.src, width: e.width, height: e.height }));
+        .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
 
       const docData = await api.generateAiLayers(enhancedPrompt, availableSprites, customUploads);
       if (docData && docData.layers && docData.entities) {
+        const imageSrcByName = new Map(
+          document.entities
+            .filter((e: any) => e.type === "image" && e.src)
+            .map((e: any) => [e.name, e.src] as const)
+        );
+        const entities = docData.entities.map((entity: any) => {
+          if (entity.type !== "image" || entity.src) return entity;
+          const src = imageSrcByName.get(entity.name);
+          return src ? { ...entity, src } : entity;
+        });
         setDocument({
           ...document,
           layers: docData.layers,
-          entities: docData.entities,
+          entities,
           timeline: docData.timeline || document.timeline
         });
         toast.success("Generated complex AI layers and movement keyframes successfully!");
@@ -509,15 +519,15 @@ export default function EditorPage() {
     useEditorStore.getState().setPlaybackState(originalPlayback);
 
     setExportStatusText(`Compiling high-fidelity ${exportFormat.toUpperCase()} on server via FFmpeg...`);
-    
+
     try {
       const blob = await api.renderDirect(projectId, exportFormat, capturedFrames, fps);
       const url = URL.createObjectURL(blob);
 
-       const downloadAnchor = window.document.createElement("a");
-       downloadAnchor.href = url;
-       downloadAnchor.download = `${projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_animation_${Date.now()}.${exportFormat}`;
-       window.document.body.appendChild(downloadAnchor);
+      const downloadAnchor = window.document.createElement("a");
+      downloadAnchor.href = url;
+      downloadAnchor.download = `${projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_animation_${Date.now()}.${exportFormat}`;
+      window.document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
       URL.revokeObjectURL(url);
@@ -535,7 +545,7 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground relative">
-      
+
       {/* EXPORT OVERLAY SCREEN */}
       {exportProgress !== null && (
         <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center select-none">
@@ -546,7 +556,7 @@ export default function EditorPage() {
             <h3 className="font-extrabold text-foreground mb-1">Rendering Video Track</h3>
             <p className="text-xs text-muted-foreground mb-5 min-h-[32px]">{exportStatusText}</p>
             <div className="h-2 w-full bg-neutral-900 rounded-full overflow-hidden mb-2">
-              <div 
+              <div
                 className="h-full bg-primary transition-all duration-150"
                 style={{ width: `${exportProgress}%` }}
               />
@@ -561,17 +571,16 @@ export default function EditorPage() {
       <Toolbar />
 
       <div className="flex min-h-0 flex-1 relative">
-        
+
         {/* 1. SLIM LEFT SIDEBAR (Width: w-16) */}
         <div className="flex w-16 shrink-0 flex-col items-center border-r border-border/50 bg-card/60 backdrop-blur-md py-4 gap-4.5 z-10 select-none">
           {/* Setup tab */}
           <button
             onClick={() => handleTabClick("video")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "video"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "video"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="Setup Background"
           >
             <IconVideo className="h-5 w-5" />
@@ -581,11 +590,10 @@ export default function EditorPage() {
           {/* Text tab */}
           <button
             onClick={() => handleTabClick("text")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "text"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "text"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="Add Texts"
           >
             <IconTypography className="h-5 w-5" />
@@ -595,11 +603,10 @@ export default function EditorPage() {
           {/* Media tab */}
           <button
             onClick={() => handleTabClick("image")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "image"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "image"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="Media Library"
           >
             <IconPhoto className="h-5 w-5" />
@@ -609,11 +616,10 @@ export default function EditorPage() {
           {/* AI Copilot tab */}
           <button
             onClick={() => handleTabClick("ai")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "ai"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "ai"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="AI Generator"
           >
             <IconSparkles className="h-5 w-5" />
@@ -623,11 +629,10 @@ export default function EditorPage() {
           {/* Export tab */}
           <button
             onClick={() => handleTabClick("export")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "export"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "export"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="Export Animation"
           >
             <IconDownload className="h-5 w-5" />
@@ -637,11 +642,10 @@ export default function EditorPage() {
           {/* JSON Explorer tab */}
           <button
             onClick={() => handleTabClick("json")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
-              leftPanelTab === "json"
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "json"
                 ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
                 : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            }`}
+              }`}
             title="JSON Document Explorer"
           >
             <IconBraces className="h-5 w-5" />
@@ -650,13 +654,12 @@ export default function EditorPage() {
         </div>
 
         {/* 2. SLIDING LEFT SUB-PANEL */}
-        <div 
-          className={`shrink-0 border-r border-border/50 bg-card/45 backdrop-blur-lg transition-all duration-300 ease-in-out overflow-hidden z-10 ${
-            leftPanelTab ? "w-64" : "w-0 border-r-0"
-          }`}
+        <div
+          className={`shrink-0 border-r border-border/50 bg-card/45 backdrop-blur-lg transition-all duration-300 ease-in-out overflow-hidden z-10 ${leftPanelTab ? "w-64" : "w-0 border-r-0"
+            }`}
         >
           <div className="h-full w-64 flex flex-col select-none">
-            
+
             {/* TAB 1: CANVAS SETUP */}
             {leftPanelTab === "video" && (
               <div className="flex flex-col h-full">
@@ -766,11 +769,10 @@ export default function EditorPage() {
                           <div
                             key={item.id}
                             onClick={() => setSelectedEntity(item.id)}
-                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer ${
-                              isSelected 
-                                ? "border-primary/40 bg-primary/5 text-primary" 
+                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer ${isSelected
+                                ? "border-primary/40 bg-primary/5 text-primary"
                                 : "border-border/30 hover:bg-accent/40"
-                            }`}
+                              }`}
                           >
                             <span className="truncate flex-1 capitalize pr-2">{item.text || "Untitled"}</span>
                             <button
@@ -853,7 +855,7 @@ export default function EditorPage() {
                   AI Animation Studio
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
-                  
+
                   {/* STEP 1: SCRIPT ENHANCER */}
                   <div className="flex flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20">
                     <div className="flex items-center gap-1.5">
@@ -871,7 +873,7 @@ export default function EditorPage() {
                       placeholder="e.g. fighter runs from left, encounters sword stickman, jumps and strikes..."
                       className="w-full h-20 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary text-xs resize-none"
                     />
-                    
+
                     <Button
                       onClick={handleEnhanceScript}
                       disabled={isEnhancing}
@@ -901,7 +903,7 @@ export default function EditorPage() {
                         Review Storyboard & Timeline
                       </Label>
                     </div>
-                    
+
                     <textarea
                       value={enhancedPrompt}
                       onChange={(e) => setEnhancedPrompt(e.target.value)}
@@ -957,11 +959,10 @@ export default function EditorPage() {
                           <button
                             key={fmt}
                             onClick={() => setExportFormat(fmt)}
-                            className={`py-1.5 rounded font-black text-[10px] tracking-wide uppercase transition-all ${
-                              exportFormat === fmt
+                            className={`py-1.5 rounded font-black text-[10px] tracking-wide uppercase transition-all ${exportFormat === fmt
                                 ? "bg-primary text-primary-foreground shadow"
                                 : "text-muted-foreground hover:bg-neutral-900 hover:text-foreground"
-                            }`}
+                              }`}
                           >
                             {fmt}
                           </button>
@@ -1044,10 +1045,9 @@ export default function EditorPage() {
         </div>
 
         {/* 4. COLLAPSIBLE RIGHT SIDEBAR (Inspector) */}
-        <div 
-          className={`shrink-0 border-l border-border/60 bg-card flex flex-col relative transition-all duration-300 ease-in-out overflow-hidden z-10 ${
-            inspectorCollapsed ? "w-0 border-l-0" : "w-72"
-          }`}
+        <div
+          className={`shrink-0 border-l border-border/60 bg-card flex flex-col relative transition-all duration-300 ease-in-out overflow-hidden z-10 ${inspectorCollapsed ? "w-0 border-l-0" : "w-72"
+            }`}
         >
           {/* Floating pull-tab handle on the left edge of Inspector */}
           <button
@@ -1056,16 +1056,16 @@ export default function EditorPage() {
             style={{ transform: 'translateX(-100%) translateY(-50%)' }}
             title={inspectorCollapsed ? "Expand Inspector Panel" : "Collapse Inspector Panel"}
           >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              viewBox="0 0 20 20" 
-              fill="currentColor" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
               className={`h-3 w-3 transform transition-transform duration-300 ${inspectorCollapsed ? "" : "rotate-180"}`}
             >
               <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
             </svg>
           </button>
-          
+
           <div className="h-full w-72">
             <InspectorPanel className="h-full w-full border-none shadow-none rounded-none max-h-none overflow-y-auto bg-transparent" />
           </div>

@@ -273,6 +273,7 @@ export function CanvasDropZone() {
               <div
                 key={entity.id}
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   position: "absolute",
                   left: `${x}px`,
@@ -320,6 +321,7 @@ export function CanvasDropZone() {
               <div
                 key={entity.id}
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   position: "absolute",
                   left: `${x}px`,
@@ -350,6 +352,7 @@ export function CanvasDropZone() {
               <div
                 key={entity.id}
                 onMouseDown={(e) => handleMouseDown(e, entity.id)}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   position: "absolute",
                   left: `${x}px`,
