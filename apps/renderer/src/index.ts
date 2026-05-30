@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, existsSync, promises as fsPromises } from "node:fs";
 import { join } from "node:path";
 
@@ -85,8 +85,8 @@ app.post("/render", async (c) => {
 
 function checkFfmpeg(): boolean {
   try {
-    const r = spawn("ffmpeg", ["-version"], { stdio: "ignore" });
-    return true;
+    const result = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    return result.status === 0;
   } catch {
     return false;
   }
