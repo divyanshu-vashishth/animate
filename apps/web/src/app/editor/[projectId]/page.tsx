@@ -21,12 +21,30 @@ import {
   IconUpload,
   IconCheck,
   IconRefresh,
-  IconSparkles,
-  IconBraces
+  IconSparkles
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+
+const CANVAS_PRESETS = [
+  // Light / Pastel Shades
+  { name: "White", value: "#FFFFFF" },
+  { name: "Soft Gray", value: "#F3F4F6" },
+  { name: "Warm Sand", value: "#FAF7F2" },
+  { name: "Sky Blue", value: "#F0F9FF" },
+  { name: "Mint Paper", value: "#ECFDF5" },
+  { name: "Lavender", value: "#F5F3FF" },
+  { name: "Blush Rose", value: "#FFF1F2" },
+  { name: "Peach Fuzz", value: "#FFF7ED" },
+  // Dark / Rich Shades
+  { name: "Obsidian", value: "#0B0F19" },
+  { name: "Dark Night", value: "#111827" },
+  { name: "Deep Indigo", value: "#1E1B4B" },
+  { name: "Forest Moss", value: "#064E3B" },
+  { name: "Burgundy", value: "#4C0519" },
+  { name: "Sunset Clay", value: "#451A03" },
+];
 
 export default function EditorPage() {
   const params = useParams();
@@ -638,19 +656,6 @@ export default function EditorPage() {
             <IconDownload className="h-5 w-5" />
             <span className="text-[8px] font-bold mt-1">Export</span>
           </button>
-
-          {/* JSON Explorer tab */}
-          <button
-            onClick={() => handleTabClick("json")}
-            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "json"
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
-                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-              }`}
-            title="JSON Document Explorer"
-          >
-            <IconBraces className="h-5 w-5" />
-            <span className="text-[8px] font-bold mt-1">JSON</span>
-          </button>
         </div>
 
         {/* 2. SLIDING LEFT SUB-PANEL */}
@@ -672,48 +677,28 @@ export default function EditorPage() {
                       Canvas Presets
                     </h4>
                     <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#FFFFFF" } })}
-                        className="p-2 border rounded-lg bg-white text-black font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
-                      >
-                        White
-                      </button>
-                      <button
-                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#F3F4F6" } })}
-                        className="p-2 border rounded-lg bg-neutral-100 text-neutral-800 font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
-                      >
-                        Soft Gray
-                      </button>
-                      <button
-                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#111827" } })}
-                        className="p-2 border rounded-lg bg-neutral-900 text-white font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
-                      >
-                        Dark Night
-                      </button>
-                      <button
-                        onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: "#ECFDF5" } })}
-                        className="p-2 border rounded-lg bg-emerald-50 text-emerald-800 font-extrabold text-center hover:scale-[1.02] transition-transform shadow-sm"
-                      >
-                        Mint Paper
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-2">
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2">
-                      Background Presets
-                    </h4>
-                    <div className="grid grid-cols-1 gap-2">
-                      {spriteManifest.backgrounds.map((bg) => (
-                        <button
-                          key={bg}
-                          onClick={() => handleAddSprite(`extras/background/${bg}`)}
-                          className="flex items-center gap-2 p-2 border border-border/40 rounded-lg hover:bg-accent/40 text-left"
-                        >
-                          <IconPhoto className="h-4 w-4 text-emerald-400 shrink-0" />
-                          <span className="truncate text-[11px] capitalize">{bg.replace(".png", "")}</span>
-                        </button>
-                      ))}
+                      {CANVAS_PRESETS.map((preset) => {
+                        const isActive = document.stage.backgroundColor?.toLowerCase() === preset.value.toLowerCase();
+                        return (
+                          <button
+                            key={preset.value}
+                            onClick={() => setDocument({ ...document, stage: { ...document.stage, backgroundColor: preset.value } })}
+                            className={`flex items-center gap-2 p-2 border rounded-lg text-left transition-all duration-200 hover:scale-[1.02] shadow-sm bg-card hover:bg-accent/40 ${
+                              isActive 
+                                ? "border-primary ring-1 ring-primary" 
+                                : "border-border/60"
+                            }`}
+                          >
+                            <span 
+                              className="h-3.5 w-3.5 rounded-full border border-neutral-300 dark:border-neutral-700 shrink-0 shadow-inner"
+                              style={{ backgroundColor: preset.value }}
+                            />
+                            <span className="truncate text-[11px] font-bold text-foreground">
+                              {preset.name}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -950,46 +935,46 @@ export default function EditorPage() {
                       Compile your layers, vector coordinates, texts, and animations into a premium high-definition video track.
                     </p>
 
-                    <div className="flex flex-col gap-2.5 bg-neutral-900/40 p-3 rounded-lg border border-border/30 mb-2">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                    <div className="flex flex-col gap-2.5 bg-muted/40 dark:bg-neutral-900/40 p-3.5 rounded-xl border border-border/60 mb-2">
+                      <span className="text-[10px] uppercase font-black text-muted-foreground tracking-wider mb-1">
                         Select Export Format
                       </span>
-                      <div className="grid grid-cols-3 gap-1.5 p-1 bg-neutral-950/50 rounded-lg border border-border/20">
+                      <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/70 dark:bg-neutral-950/50 rounded-lg border border-border/40">
                         {(["mp4", "webm", "gif"] as const).map((fmt) => (
                           <button
                             key={fmt}
                             onClick={() => setExportFormat(fmt)}
                             className={`py-1.5 rounded font-black text-[10px] tracking-wide uppercase transition-all ${exportFormat === fmt
-                                ? "bg-primary text-primary-foreground shadow"
-                                : "text-muted-foreground hover:bg-neutral-900 hover:text-foreground"
+                                ? "bg-primary text-primary-foreground shadow-md shadow-primary/10"
+                                : "text-muted-foreground hover:bg-background/80 dark:hover:bg-neutral-900 hover:text-foreground"
                               }`}
                           >
                             {fmt}
                           </button>
                         ))}
                       </div>
-                      <p className="text-[9px] text-muted-foreground leading-relaxed mt-1 select-none min-h-[30px]">
+                      <p className="text-[9px] text-muted-foreground/80 leading-relaxed mt-1 select-none min-h-[30px]">
                         {exportFormat === "mp4" && "MP4 (H.264): Visually lossless vector stream. Broadcast-ready, universally supported."}
                         {exportFormat === "webm" && "WebM (VP9): High compression, perfect for seamless modern web playback."}
                         {exportFormat === "gif" && "GIF: Palette-optimized 256-color sequence. Ideal for animations, stickers, and instant sharing."}
                       </p>
                     </div>
 
-                    <div className="flex flex-col gap-2 bg-neutral-900/40 p-3 rounded-lg border border-border/30 mb-4 text-[10px]">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">
+                    <div className="flex flex-col gap-2 bg-muted/40 dark:bg-neutral-900/40 p-3.5 rounded-xl border border-border/60 mb-4 text-[10px]">
+                      <span className="text-[10px] uppercase font-black text-muted-foreground tracking-wider mb-1">
                         Export Settings
                       </span>
-                      <div className="flex justify-between py-1 border-b border-border/20 text-muted-foreground">
+                      <div className="flex justify-between py-1.5 border-b border-border/30 text-muted-foreground">
                         <span>Resolution</span>
-                        <span className="font-bold text-foreground">1280 × 720 (HD)</span>
+                        <span className="font-extrabold text-foreground">1280 × 720 (HD)</span>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-border/20 text-muted-foreground">
+                      <div className="flex justify-between py-1.5 border-b border-border/30 text-muted-foreground">
                         <span>Frame Rate</span>
-                        <span className="font-bold text-foreground">30 FPS (Constant)</span>
+                        <span className="font-extrabold text-foreground">30 FPS (Constant)</span>
                       </div>
-                      <div className="flex justify-between py-1 text-muted-foreground">
+                      <div className="flex justify-between py-1.5 text-muted-foreground">
                         <span>Processing</span>
-                        <span className="font-bold text-foreground">FFmpeg Worker</span>
+                        <span className="font-extrabold text-foreground">FFmpeg Worker</span>
                       </div>
                     </div>
 
@@ -1001,32 +986,6 @@ export default function EditorPage() {
                       Compile & Download
                     </Button>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 5: JSON DOCUMENT EXPLORER */}
-            {leftPanelTab === "json" && (
-              <div className="flex flex-col h-full">
-                <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground shrink-0">
-                  JSON Explorer
-                </div>
-                <div className="flex-1 overflow-hidden p-3.5 flex flex-col gap-2.5">
-                  <p className="text-[10px] text-muted-foreground leading-relaxed select-none">
-                    Raw project state document. Useful to review AI keyframes, scale dimensions, and layer structures.
-                  </p>
-                  <div className="flex-1 min-h-0 relative bg-neutral-950/70 border border-border/40 rounded-lg p-2.5 font-mono text-[9px] text-emerald-400 overflow-auto select-text select-all">
-                    <pre className="whitespace-pre">{JSON.stringify(document, null, 2)}</pre>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(document, null, 2));
-                      toast.success("JSON copied to clipboard!");
-                    }}
-                    className="w-full h-8 text-[11px] font-extrabold gap-1.5 shadow-md shrink-0"
-                  >
-                    Copy JSON State
-                  </Button>
                 </div>
               </div>
             )}
