@@ -4,7 +4,10 @@ import { spawn } from "node:child_process";
 import { mkdirSync, existsSync, promises as fsPromises } from "node:fs";
 import { join } from "node:path";
 
+import { cors } from "hono/cors";
+
 const app = new Hono();
+app.use("/*", cors());
 const OUTPUT_DIR = join(process.cwd(), "output");
 
 app.get("/health", (c) =>

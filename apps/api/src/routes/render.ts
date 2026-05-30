@@ -7,6 +7,10 @@ const RENDERER_URL = process.env.RENDERER_URL ?? "http://localhost:4001";
 
 export const renderRoutes = new Hono();
 
+renderRoutes.get("/config", (c) => {
+  return c.json({ rendererUrl: RENDERER_URL });
+});
+
 // Direct pipeline: captures frames client-side, compiles via renderer container, returns binary video directly
 renderRoutes.post("/jobs/direct", async (c) => {
   const user = getAuthUser(c);

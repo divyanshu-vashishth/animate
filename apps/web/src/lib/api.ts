@@ -80,17 +80,28 @@ export const api = {
     ),
 
   renderDirect: async (projectId: string, format: "mp4" | "gif" | "webm", frames: string[], fps?: number): Promise<Blob> => {
-    const res = await fetch(`${API_URL}/render/jobs/direct`, {
+    // 1. Retrieve the container's public URL from Hono
+    const configRes = await fetch(`${API_URL}/render/config`);
+    if (!configRes.ok) {
+      throw new Error("Failed to retrieve render server configuration.");
+    }
+    const { rendererUrl } = await configRes.json() as { rendererUrl: string };
+
+    // 2. Upload frames directly to the Render.com container (bypassing Vercel gateway completely!)
+    const jobId = typeof crypto.randomUUID === "function" 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2);
+      
+    const res = await fetch(`${rendererUrl}/render`, {
       method: "POST",
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ projectId, format, frames, fps }),
+      body: JSON.stringify({ jobId, format, frames, fps }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error((err as { error?: string }).error ?? "API error");
+      throw new Error((err as { error?: string }).error ?? "Render server error");
     }
     return res.blob();
   },
