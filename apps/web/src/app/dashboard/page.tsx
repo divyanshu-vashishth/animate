@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@stickman/auth/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import {
   IconMovie,
@@ -75,8 +77,16 @@ export default function DashboardPage() {
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  const handleDeleteProject = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  // Custom modals state
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newAnimationName, setNewAnimationName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!projectToDelete) return;
+    const { id, name } = projectToDelete;
+    setProjectToDelete(null);
     try {
       await api.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -84,6 +94,22 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to delete project", err);
       toast.error("Failed to delete project");
+    }
+  };
+
+  const handleConfirmCreate = async () => {
+    if (!newAnimationName.trim() || creating) return;
+    setCreating(true);
+    try {
+      const { project } = await api.createProject(newAnimationName.trim());
+      toast.success("Animation created successfully!");
+      setShowCreateModal(false);
+      setNewAnimationName("");
+      router.push(`/editor/${project.id}`);
+    } catch {
+      toast.error("Failed to create new animation");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -113,16 +139,6 @@ export default function DashboardPage() {
         });
     }
   }, [activeTab, session]);
-
-  const createProject = async () => {
-    try {
-      const { project } = await api.createProject(`Animation ${projects.length + 1}`);
-      toast.success("Animation created successfully!");
-      router.push(`/editor/${project.id}`);
-    } catch {
-      toast.error("Failed to create new animation");
-    }
-  };
 
   const signOut = async () => {
     await authClient.signOut();
@@ -168,8 +184,39 @@ export default function DashboardPage() {
 
       const base64Url = reader.result as string;
 
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+      let fileUrl = base64Url;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const fileExt = file.name.split(".").pop() || "png";
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+          const filePath = `${fileName}`;
+
+          // Upload binary directly to Supabase Storage REST API
+          const storageRes = await fetch(`${supabaseUrl}/storage/v1/object/assets/${filePath}`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${supabaseKey}`,
+              "apikey": supabaseKey,
+            },
+            body: file,
+          });
+
+          if (storageRes.ok) {
+            fileUrl = `${supabaseUrl}/storage/v1/object/public/assets/${filePath}`;
+          } else {
+            console.error("Supabase Storage REST upload failed, status:", storageRes.status);
+          }
+        } catch (err) {
+          console.error("Failed to upload to Supabase Storage, falling back to base64:", err);
+        }
+      }
+
       try {
-        const { asset } = await api.uploadAsset(file.name, file.type, base64Url);
+        const { asset } = await api.uploadAsset(file.name, file.type, fileUrl, { size: file.size });
         clearInterval(progressInterval);
         setUploadProgress(100);
         setTimeout(() => {
@@ -390,7 +437,10 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">Create, edit, and orchestrate stickman sprite animations</p>
               </div>
               <Button
-                onClick={createProject}
+                onClick={() => {
+                  setNewAnimationName("");
+                  setShowCreateModal(true);
+                }}
                 className="h-9 px-4 text-xs font-semibold gap-1.5 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform duration-200"
               >
                 <IconPlus className="h-4 w-4" /> New Animation
@@ -406,7 +456,10 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground max-w-xs mb-6">
                   Get started by creating your very first stickman canvas project!
                 </p>
-                <Button onClick={createProject} size="sm">
+                <Button onClick={() => {
+                  setNewAnimationName("");
+                  setShowCreateModal(true);
+                }} size="sm">
                   Create First Animation
                 </Button>
               </div>
@@ -443,7 +496,7 @@ export default function DashboardPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void handleDeleteProject(p.id, p.name);
+                        setProjectToDelete({ id: p.id, name: p.name });
                       }}
                       className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg border border-border/30 bg-card/60 text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md"
                       title="Delete Animation"
@@ -560,6 +613,97 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {projectToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-xl border border-border/50 bg-card/95 p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-sm font-extrabold text-foreground">Delete Animation</h3>
+              <p className="text-xs text-muted-foreground">
+                Are you sure you want to delete <span className="font-bold text-foreground">"{projectToDelete.name}"</span>? This action is permanent and cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2.5 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProjectToDelete(null)}
+                className="h-8 text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  void confirmDelete();
+                }}
+                className="h-8 text-xs font-semibold"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Animation Custom Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-xl border border-border/50 bg-card/95 p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-sm font-extrabold text-foreground">Create New Animation</h3>
+              <p className="text-xs text-muted-foreground">
+                Give your animation a name to get started.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-anim-name" className="text-xs text-muted-foreground font-semibold">Animation Name</Label>
+              <Input
+                id="new-anim-name"
+                value={newAnimationName}
+                onChange={(e) => setNewAnimationName(e.target.value)}
+                placeholder="My Awesome Stickman Animation"
+                className="h-9 text-xs font-semibold px-2 py-0.5"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void handleConfirmCreate();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2.5 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewAnimationName("");
+                }}
+                className="h-8 text-xs font-semibold"
+                disabled={creating}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  void handleConfirmCreate();
+                }}
+                className="h-8 text-xs font-semibold"
+                disabled={creating || !newAnimationName.trim()}
+              >
+                {creating ? (
+                  <IconLoader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : null}
+                Create
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

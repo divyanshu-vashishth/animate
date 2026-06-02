@@ -109,13 +109,13 @@ export const api = {
 
   listAssets: () =>
     fetchApi<{
-      assets: Array<{ id: string; name: string; type: string; url: string; createdAt: string }>;
+      assets: Array<{ id: string; name: string; type: string; url: string; metadata?: any; createdAt: string }>;
     }>("/assets"),
 
-  uploadAsset: (name: string, type: string, url: string) =>
-    fetchApi<{ asset: { id: string; name: string; type: string; url: string; createdAt: string } }>("/assets", {
+  uploadAsset: (name: string, type: string, url: string, metadata?: any) =>
+    fetchApi<{ asset: { id: string; name: string; type: string; url: string; metadata?: any; createdAt: string } }>("/assets", {
       method: "POST",
-      body: JSON.stringify({ name, type, url }),
+      body: JSON.stringify({ name, type, url, metadata }),
     }),
 
   deleteProject: (projectId: string) =>

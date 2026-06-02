@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { spriteManifest } from "@stickman/shared";
 import { clipPath } from "@stickman/shared";
 import { useEditorStore } from "@/stores/editor-store";
+import { api } from "@/lib/api";
 import { 
   IconChevronDown, 
   IconChevronRight, 
@@ -13,7 +14,9 @@ import {
   IconCpu, 
   IconSword, 
   IconUser,
-  IconPlus
+  IconPlus,
+  IconCloudUpload,
+  IconLoader2
 } from "@tabler/icons-react";
 
 export function AssetsPanel({ className }: { className?: string }) {
@@ -31,7 +34,57 @@ export function AssetsPanel({ className }: { className?: string }) {
     sword: false,
     backgrounds: false,
     props: false,
+    uploads: true,
   });
+
+  const [customAssets, setCustomAssets] = useState<any[]>([]);
+  const [loadingCustomAssets, setLoadingCustomAssets] = useState(false);
+
+  useEffect(() => {
+    setLoadingCustomAssets(true);
+    api.listAssets()
+      .then(({ assets }) => {
+        setCustomAssets(assets || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load custom assets in editor:", err);
+      })
+      .finally(() => {
+        setLoadingCustomAssets(false);
+      });
+  }, []);
+
+  const handleCustomAssetClick = (asset: any) => {
+    if (!document) return;
+    const newEntity = {
+      id: crypto.randomUUID(),
+      type: "image" as const,
+      name: asset.name,
+      layerId: activeLayerId || document.layers[0]?.id || "default-layer",
+      src: asset.url,
+      transform: { x: 320, y: 180, rotation: 0, scaleX: 1, scaleY: 1 },
+      startTime: 0,
+      endTime: document.timeline?.duration ?? 5,
+      width: 120,
+      height: 120,
+    };
+
+    const updatedEntities = [...document.entities, newEntity];
+    setDocument({
+      ...document,
+      entities: updatedEntities,
+    });
+    setSelectedEntity(newEntity.id);
+    import("sonner").then(({ toast }) => {
+      toast.success(`Added ${newEntity.name} to canvas`);
+    });
+  };
+
+  const onCustomDragStart = (e: React.DragEvent, asset: any) => {
+    e.dataTransfer.setData("application/stickman-clip", asset.url);
+    e.dataTransfer.setData("text/plain", asset.url);
+    e.dataTransfer.effectAllowed = "copy";
+  };
 
   const toggleGroup = (group: string) => {
     setExpandedGroups((prev) => ({
@@ -287,6 +340,70 @@ export function AssetsPanel({ className }: { className?: string }) {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* My Uploads Group */}
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => toggleGroup("uploads")}
+                className="flex items-center justify-between gap-2.5 rounded px-2 py-1 text-left font-bold text-foreground/90 hover:bg-accent/40 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <IconCloudUpload className="h-4 w-4 text-violet-400 shrink-0" />
+                  <span className="truncate text-[11px] font-semibold">My Uploads</span>
+                </div>
+                {expandedGroups.uploads ? (
+                  <IconChevronDown className="h-3 w-3 text-muted-foreground/60" />
+                ) : (
+                  <IconChevronRight className="h-3 w-3 text-muted-foreground/60" />
+                )}
+              </button>
+
+              {expandedGroups.uploads && (
+                <div className="border-l border-border/30 ml-4 pl-2.5 py-0.5 flex flex-col gap-1">
+                  {loadingCustomAssets ? (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-muted-foreground text-[10px]">
+                      <IconLoader2 className="h-3 w-3 animate-spin text-primary" />
+                      <span>Loading uploads...</span>
+                    </div>
+                  ) : customAssets.length === 0 ? (
+                    <div className="text-[10px] text-muted-foreground/60 px-2 py-1">
+                      No custom assets found. Upload images on the dashboard to see them here!
+                    </div>
+                  ) : (
+                    customAssets.map((asset) => (
+                      <div
+                        key={asset.id}
+                        draggable
+                        onDragStart={(e) => onCustomDragStart(e, asset)}
+                        onClick={() => handleCustomAssetClick(asset)}
+                        className="group flex items-center justify-between cursor-pointer rounded px-2 py-1 text-muted-foreground hover:bg-violet-500/10 hover:text-violet-400 transition-all duration-150"
+                        title="Click to add or drag onto canvas"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {asset.url && (
+                            <img
+                              src={asset.url}
+                              alt={asset.name}
+                              className="h-4 w-4 rounded object-cover border border-border/20 bg-neutral-950 shrink-0"
+                            />
+                          )}
+                          <span className="truncate text-[10px] font-medium">
+                            {asset.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 select-none">
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-violet-400/80">
+                            Add
+                          </span>
+                          <IconPlus className="h-2.5 w-2.5 text-violet-400/80" />
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>

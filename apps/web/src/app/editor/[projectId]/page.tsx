@@ -21,7 +21,10 @@ import {
   IconUpload,
   IconCheck,
   IconRefresh,
-  IconSparkles
+  IconSparkles,
+  IconCloudUpload,
+  IconLoader2,
+  IconLock
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -127,6 +130,58 @@ export default function EditorPage() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [enhancedPrompt, setEnhancedPrompt] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [customAssets, setCustomAssets] = useState<any[]>([]);
+  const [loadingCustomAssets, setLoadingCustomAssets] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const loadCustomAssets = useCallback(async () => {
+    setLoadingCustomAssets(true);
+    try {
+      const { assets } = await api.listAssets();
+      setCustomAssets(assets || []);
+    } catch (err) {
+      console.error("Failed to load custom assets in editor:", err);
+    } finally {
+      setLoadingCustomAssets(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session?.user) {
+      void loadCustomAssets();
+    }
+  }, [session, loadCustomAssets]);
+
+  const handleCustomAssetClick = (asset: any) => {
+    if (!document) return;
+    const newImage = {
+      id: crypto.randomUUID(),
+      type: "image" as const,
+      name: asset.name.replace(/\.[^/.]+$/, ""),
+      layerId: document.layers[0]?.id || "default-layer",
+      src: asset.url,
+      transform: { x: 320, y: 180, rotation: 0, scaleX: 1, scaleY: 1 },
+      width: 140,
+      height: 140,
+      startTime: 0,
+      endTime: document.timeline?.duration ?? 5,
+    };
+
+    const updated = [...document.entities, newImage];
+    setDocument({
+      ...document,
+      entities: updated,
+    });
+    setSelectedEntity(newImage.id);
+    toast.success(`Added ${newImage.name} to canvas`);
+  };
+
+  const onCustomDragStart = (e: React.DragEvent, asset: any) => {
+    e.dataTransfer.setData("application/stickman-clip", asset.url);
+    e.dataTransfer.setData("text/plain", asset.url);
+    e.dataTransfer.effectAllowed = "copy";
+  };
 
 
   if (isPending || !document) {
@@ -173,35 +228,103 @@ export default function EditorPage() {
     setTextVal("");
   };
 
-  // Handle local file uploads (converts to Base64)
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle local file uploads (uploads to Supabase Storage and inserts onto canvas)
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Src = event.target?.result as string;
-      const newImage = {
-        id: crypto.randomUUID(),
-        type: "image" as const,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        layerId: document.layers[0]?.id || "default-layer",
-        src: base64Src,
-        transform: { x: 320, y: 300, rotation: 0, scaleX: 1, scaleY: 1 },
-        width: 140,
-        height: 140,
-        startTime: 0,
-        endTime: document.timeline?.duration ?? 5,
-      };
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (PNG/JPG/SVG/GIF)");
+      return;
+    }
 
-      const updated = [...document.entities, newImage];
-      setDocument({
-        ...document,
-        entities: updated,
-      });
-      setSelectedEntity(newImage.id);
-      toast.success(`Successfully uploaded "${newImage.name}"`);
+    // Limit check: 3MB limit
+    const totalUploadSize = customAssets.reduce((sum, a) => sum + (Number(a.metadata?.size) || 0), 0);
+    if (totalUploadSize + file.size > 3 * 1024 * 1024) {
+      setShowUpgradeModal(true);
+      toast.error("Upload limit exceeded! Free accounts are limited to 3MB of total assets storage.");
+      return;
+    }
+
+    setUploadingAsset(true);
+    const toastId = toast.loading("Uploading asset to Cloud Storage...");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Url = reader.result as string;
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+      let fileUrl = base64Url;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const fileExt = file.name.split(".").pop() || "png";
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+          const filePath = `${fileName}`;
+
+          // Upload binary directly to Supabase Storage REST API
+          const storageRes = await fetch(`${supabaseUrl}/storage/v1/object/assets/${filePath}`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${supabaseKey}`,
+              "apikey": supabaseKey,
+            },
+            body: file,
+          });
+
+          if (storageRes.ok) {
+            fileUrl = `${supabaseUrl}/storage/v1/object/public/assets/${filePath}`;
+          } else {
+            console.error("Supabase Storage REST upload failed, status:", storageRes.status);
+          }
+        } catch (err) {
+          console.error("Failed to upload to Supabase Storage, falling back to base64:", err);
+        }
+      }
+
+      try {
+        const { asset } = await api.uploadAsset(file.name, file.type, fileUrl, { size: file.size });
+        setCustomAssets((prev) => [asset, ...prev]);
+
+        // Automatically add to canvas
+        const newImage = {
+          id: crypto.randomUUID(),
+          type: "image" as const,
+          name: asset.name.replace(/\.[^/.]+$/, ""),
+          layerId: document.layers[0]?.id || "default-layer",
+          src: asset.url,
+          transform: { x: 320, y: 180, rotation: 0, scaleX: 1, scaleY: 1 },
+          width: 140,
+          height: 140,
+          startTime: 0,
+          endTime: document.timeline?.duration ?? 5,
+        };
+
+        const updated = [...document.entities, newImage];
+        setDocument({
+          ...document,
+          entities: updated,
+        });
+        setSelectedEntity(newImage.id);
+
+        toast.dismiss(toastId);
+        toast.success(`Successfully uploaded "${asset.name}" and added to canvas!`);
+      } catch (err) {
+        toast.dismiss(toastId);
+        toast.error("Failed to save asset to database");
+      } finally {
+        setUploadingAsset(false);
+      }
     };
+
+    reader.onerror = () => {
+      toast.dismiss(toastId);
+      toast.error("Error reading file");
+      setUploadingAsset(false);
+    };
+
     reader.readAsDataURL(file);
   };
 
@@ -813,24 +936,115 @@ export default function EditorPage() {
 
                 <div className="flex-1 min-h-0 flex flex-col">
                   {mediaSubTab === "upload" ? (
-                    <div className="flex-1 overflow-y-auto p-4 text-xs font-semibold flex flex-col gap-4">
-                      <div className="flex flex-col gap-3">
-                        <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
-                          Upload custom photos
+                    <div className="flex-1 overflow-y-auto p-4 text-xs font-semibold flex flex-col gap-4 min-h-0">
+                      {/* Storage Quota Usage Banner */}
+                      {(() => {
+                        const totalUploadSize = customAssets.reduce((sum, a) => sum + (Number(a.metadata?.size) || 0), 0);
+                        const totalUploadSizeMB = (totalUploadSize / (1024 * 1024)).toFixed(2);
+                        const sizePercentage = Math.min(Math.round((totalUploadSize / (3 * 1024 * 1024)) * 100), 100);
+                        const isOverLimit = totalUploadSize > 3 * 1024 * 1024;
+                        return (
+                          <div className="bg-card/40 border border-border/30 rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden backdrop-blur-md">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-muted-foreground font-bold">Storage Usage</span>
+                              <span className="text-[9px] text-primary font-black uppercase bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 flex items-center gap-1">
+                                Free Plan
+                              </span>
+                            </div>
+                            <div className="flex items-end justify-between font-black tracking-wide text-foreground text-[11px]">
+                              <span>{totalUploadSizeMB} MB <span className="text-muted-foreground/60 font-medium">/ 3.00 MB</span></span>
+                              <span>{sizePercentage}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-neutral-900 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-300 ${isOverLimit ? 'bg-destructive' : 'bg-primary'}`}
+                                style={{ width: `${sizePercentage}%` }}
+                              />
+                            </div>
+                            <button
+                              onClick={() => setShowUpgradeModal(true)}
+                              className="w-full mt-1 bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg py-1.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 active:scale-[0.98] transition-all shadow-md shadow-violet-600/10"
+                            >
+                              <IconLock className="h-3 w-3" /> Upgrade to Premium
+                            </button>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Upload Box */}
+                      <div className="flex flex-col gap-2">
+                        <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                          Upload Custom Photos
                         </Label>
-                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-2">
-                          <IconUpload className="h-6 w-6 text-muted-foreground" />
-                          <span className="text-[10px] font-bold text-muted-foreground">Upload Photo</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoUpload}
-                            className="hidden"
-                          />
+                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-1.5 relative group">
+                          {uploadingAsset ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+                              <span className="text-[9px] font-bold text-muted-foreground">Uploading file...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <IconUpload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                              <span className="text-[9px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">Upload Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoUpload}
+                                className="hidden"
+                                disabled={uploadingAsset}
+                              />
+                            </>
+                          )}
                         </label>
-                        <p className="text-[9px] text-muted-foreground/70 leading-relaxed p-1 select-none">
+                        <p className="text-[8.5px] text-muted-foreground/65 leading-relaxed p-0.5 select-none">
                           💡 You can upload absolute transparent PNG/JPG files here to overlay onto the canvas directly.
                         </p>
+                      </div>
+
+                      {/* Gallery Grid */}
+                      <div className="flex flex-col gap-2.5 min-h-0 flex-1">
+                        <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                          Your Gallery
+                        </Label>
+                        {loadingCustomAssets ? (
+                          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground text-[10px]">
+                            <IconLoader2 className="h-4 w-4 animate-spin text-primary" />
+                            <span>Loading files...</span>
+                          </div>
+                        ) : customAssets.length === 0 ? (
+                          <div className="text-[10px] text-muted-foreground/60 text-center py-8 border border-dashed border-border/30 rounded-xl bg-card/10 select-none">
+                            No uploaded assets. Upload a photo above to populate your gallery!
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2 overflow-y-auto pr-1 pb-4">
+                            {customAssets.map((asset) => (
+                              <div
+                                key={asset.id}
+                                draggable
+                                onDragStart={(e) => onCustomDragStart(e, asset)}
+                                onClick={() => handleCustomAssetClick(asset)}
+                                className="group relative aspect-square rounded-lg border border-border/40 bg-neutral-900/60 overflow-hidden cursor-pointer hover:border-primary/50 transition-all select-none hover:shadow-md hover:shadow-primary/5 active:scale-95"
+                                title="Click to add or drag onto canvas"
+                              >
+                                {asset.url && (
+                                  <img
+                                    src={asset.url}
+                                    alt={asset.name}
+                                    className="h-full w-full object-contain p-1.5 transition-transform duration-200 group-hover:scale-110"
+                                  />
+                                )}
+                                <div className="absolute inset-0 bg-neutral-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-1.5">
+                                  <span className="truncate text-[8px] font-black text-white leading-none mb-1">
+                                    {asset.name.replace(/\.[^/.]+$/, "")}
+                                  </span>
+                                  <span className="text-[7px] text-primary font-black uppercase tracking-widest leading-none flex items-center gap-0.5">
+                                    <IconPlus className="h-2 w-2" /> Add
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -1038,6 +1252,75 @@ export default function EditorPage() {
         </div>
 
       </div>
+
+      {/* PREMIUM UPGRADE NOTICE DIALOG */}
+      {showUpgradeModal && (
+        <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border/80 p-8 rounded-2xl shadow-2xl max-w-md w-full flex flex-col relative overflow-hidden animate-in fade-in zoom-in duration-300">
+            {/* Ambient Background Glow */}
+            <div className="absolute -top-20 -right-20 w-48 h-48 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex items-center gap-3 mb-5">
+              <span className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary">
+                <IconSparkles className="h-6 w-6 text-amber-400 fill-amber-400" />
+              </span>
+              <div>
+                <h3 className="font-extrabold text-foreground text-lg">Upgrade to Premium</h3>
+                <p className="text-[10px] text-primary font-black uppercase tracking-wider">Unlock Professional Studio Features</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed mb-6">
+              You've hit the <span className="font-extrabold text-foreground">3.0 MB free storage limit</span>. Upgrade your plan to get unlimited cloud assets storage, high-speed 1080p FFmpeg exports, and advanced AI script compilation!
+            </p>
+
+            {/* Premium Features List */}
+            <div className="flex flex-col gap-3 mb-6 bg-muted/20 border border-border/40 p-4 rounded-xl">
+              <div className="flex items-start gap-2.5 text-xs text-foreground font-semibold">
+                <span className="text-primary font-black text-sm">✓</span>
+                <div>
+                  <div className="font-black text-[11px]">Unlimited Cloud Asset Storage</div>
+                  <div className="text-[10px] text-muted-foreground font-medium">Upload files of any size without limitations.</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5 text-xs text-foreground font-semibold">
+                <span className="text-primary font-black text-sm">✓</span>
+                <div>
+                  <div className="font-black text-[11px]">HD 1080p Render Pipeline</div>
+                  <div className="text-[10px] text-muted-foreground font-medium">Fast 60fps renders using dedicated server clusters.</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5 text-xs text-foreground font-semibold">
+                <span className="text-primary font-black text-sm">✓</span>
+                <div>
+                  <div className="font-black text-[11px]">Advanced AI Storyboards</div>
+                  <div className="text-[10px] text-muted-foreground font-medium">Generate full-length scenes with multiple complex keyframe tracks.</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <Button
+                variant="secondary"
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 h-9.5 text-xs font-black uppercase tracking-wider border border-border/40"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  toast.success("Upgrade process simulated successfully!");
+                }}
+                className="flex-1 h-9.5 text-xs font-black uppercase tracking-wider bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-violet-600/20"
+              >
+                Upgrade Plan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

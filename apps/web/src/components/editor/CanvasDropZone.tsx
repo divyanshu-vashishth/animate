@@ -61,6 +61,7 @@ export function CanvasDropZone() {
   } | null>(null);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const draggedRef = useRef(false);
 
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -83,12 +84,25 @@ export function CanvasDropZone() {
 
     let newEntity: any = null;
 
-    if (clip.startsWith("extras/prop/")) {
+    if (clip.startsWith("http") || clip.startsWith("data:")) {
+      newEntity = {
+        id: crypto.randomUUID(),
+        type: "image" as const,
+        name: "Uploaded Element",
+        layerId: document.layers[0]?.id || "default-layer",
+        src: clip,
+        transform: { x, y, rotation: 0, scaleX: 1, scaleY: 1 },
+        startTime: 0,
+        endTime: document.timeline?.duration ?? 5,
+        width: 120,
+        height: 120,
+      };
+    } else if (clip.startsWith("extras/prop/")) {
       const filename = clip.split("/").pop()!;
       const cleanName = filename.replace(".png", "");
       newEntity = {
         id: crypto.randomUUID(),
-        type: "sprite",
+        type: "sprite" as const,
         name: cleanName,
         layerId: document.layers[0]?.id || "default-layer",
         clip,
@@ -103,7 +117,7 @@ export function CanvasDropZone() {
       const cleanName = filename.replace(".png", "");
       newEntity = {
         id: crypto.randomUUID(),
-        type: "sprite",
+        type: "sprite" as const,
         name: cleanName,
         layerId: document.layers[0]?.id || "default-layer",
         clip,
@@ -119,7 +133,7 @@ export function CanvasDropZone() {
         const [character, action] = parsed;
         newEntity = {
           id: crypto.randomUUID(),
-          type: "sprite",
+          type: "sprite" as const,
           name: `${character} (${action})`,
           layerId: document.layers[0]?.id || "default-layer",
           clip,
@@ -147,6 +161,7 @@ export function CanvasDropZone() {
     e.stopPropagation();
     e.preventDefault();
     setSelectedEntity(entityId);
+    draggedRef.current = false;
 
     const entity = document?.entities.find((item) => item.id === entityId);
     if (!entity) return;
@@ -167,31 +182,86 @@ export function CanvasDropZone() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragState || !document) return;
 
+    draggedRef.current = true;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
 
+    const nextX = Math.round(dragState.initialX + dx);
+    const nextY = Math.round(dragState.initialY + dy);
+
+    // 1. Update coordinates in base entities list
     const nextEntities = document.entities.map((item) => {
       if (item.id === dragState.entityId) {
         return {
           ...item,
           transform: {
             ...item.transform,
-            x: Math.round(dragState.initialX + dx),
-            y: Math.round(dragState.initialY + dy),
+            x: nextX,
+            y: nextY,
           },
         };
       }
       return item;
     });
 
+    // 2. Also update keyframes if tracks exist for transform.x or transform.y
+    let nextTracks = document.timeline?.tracks || [];
+    const hasTracks = nextTracks.some(
+      (t: any) => t.entityId === dragState.entityId && (t.property === "transform.x" || t.property === "transform.y")
+    );
+
+    if (hasTracks) {
+      nextTracks = nextTracks.map((track: any) => {
+        if (track.entityId === dragState.entityId && (track.property === "transform.x" || track.property === "transform.y")) {
+          const isX = track.property === "transform.x";
+          const val = isX ? nextX : nextY;
+
+          // Find if there is an existing keyframe close to the current time (within 0.05s)
+          const keyframes = [...track.keyframes];
+          const existingKfIndex = keyframes.findIndex((kf: any) => Math.abs(kf.time - timelineTime) < 0.05);
+
+          if (existingKfIndex !== -1) {
+            keyframes[existingKfIndex] = {
+              ...keyframes[existingKfIndex],
+              value: val,
+            };
+          } else {
+            keyframes.push({ time: timelineTime, value: val });
+            keyframes.sort((a: any, b: any) => a.time - b.time);
+          }
+
+          return {
+            ...track,
+            keyframes,
+          };
+        }
+        return track;
+      });
+    }
+
     setDocument({
       ...document,
       entities: nextEntities,
+      timeline: {
+        ...document.timeline,
+        tracks: nextTracks,
+      } as any,
     });
   };
 
   const handleMouseUp = () => {
     setDragState(null);
+  };
+
+  const handleViewportClick = (e: React.MouseEvent) => {
+    if (draggedRef.current) {
+      // Just finished dragging, consume the click event without deselecting
+      draggedRef.current = false;
+      return;
+    }
+    if (e.target === e.currentTarget) {
+      setSelectedEntity(null);
+    }
   };
 
   // Filter visible entities according to playhead selection bounds
@@ -215,7 +285,7 @@ export function CanvasDropZone() {
         ref={canvasRef}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        onClick={() => setSelectedEntity(null)}
+        onClick={handleViewportClick}
         style={{ backgroundColor: activeBg }}
         className="relative h-[360px] w-[640px] shadow-2xl rounded-lg border border-border/10 overflow-hidden"
       >
