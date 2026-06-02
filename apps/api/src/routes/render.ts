@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { getDb, projects, renderJobs } from "@stickman/database";
 import { getAuthUser } from "../middleware/session.js";
 
-const RENDERER_URL = process.env.RENDERER_URL ?? "http://localhost:4001";
+const RENDERER_URL = (process.env.RENDERER_URL ?? "http://localhost:4001").replace(/\/+$/, "");
 
 export const renderRoutes = new Hono();
 

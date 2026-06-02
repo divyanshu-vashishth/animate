@@ -92,7 +92,8 @@ export const api = {
       ? crypto.randomUUID() 
       : Math.random().toString(36).substring(2);
       
-    const res = await fetch(`${rendererUrl}/render`, {
+    const cleanRendererUrl = rendererUrl.replace(/\/+$/, "");
+    const res = await fetch(`${cleanRendererUrl}/render`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -383,6 +383,12 @@ export default function EditorPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    ctx.save();
+    // Scale standard 640x360 coordinates to the actual buffer canvas dimensions (e.g. 1280x720)
+    const scaleCanvasX = canvas.width / 640;
+    const scaleCanvasY = canvas.height / 360;
+    ctx.scale(scaleCanvasX, scaleCanvasY);
+
     // 1. Draw stage background
     ctx.fillStyle = document.stage.backgroundColor || "#FFFFFF";
     ctx.fillRect(0, 0, 640, 360);
@@ -490,6 +496,7 @@ export default function EditorPage() {
         ctx.restore();
       }
     }
+    ctx.restore();
   };
 
   // Visually Lossless Offline Canvas JPEG Capture & FFmpeg server-side encoder
