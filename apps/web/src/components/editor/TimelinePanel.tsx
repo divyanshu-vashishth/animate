@@ -23,6 +23,9 @@ export function TimelinePanel() {
   const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
 
+  const rulerRef = useRef<HTMLDivElement>(null);
+  const tracksContainerRef = useRef<HTMLDivElement>(null);
+
   const duration = document?.timeline?.duration ?? 10;
 
   // 60FPS Continuous Playhead animation loop ticker
@@ -140,18 +143,45 @@ export function TimelinePanel() {
         </div>
       </div>
 
-      {/* 2. TRACKS GRID AND TICK MARKS RULER WITH UNIFIED SCROLL */}
-      <div className="flex flex-1 min-h-0 overflow-y-auto">
-        
-        {/* Track Headers Sidebar Column */}
-        <div className="w-52 shrink-0 border-r border-border/40 flex flex-col bg-card/25">
+      {/* 2. TIMELINE BODY (RULER + TRACKS & HEADERS + LAYERS) */}
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+        {/* Sticky Headers Row */}
+        <div className="flex shrink-0 z-30 bg-muted/10 border-b border-border/40">
           {/* Header spacer aligned with ruler */}
-          <div className="h-7 shrink-0 border-b border-border/40 px-3 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 bg-muted/10">
+          <div className="w-52 shrink-0 border-r border-border/40 px-3 h-7 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 bg-muted/10 select-none">
             <span>Layers & Tracks</span>
             <span>Type</span>
           </div>
+          {/* Ruler tick marks spacer */}
+          <div 
+            ref={rulerRef}
+            className="flex-1 h-7 flex relative bg-muted/15 overflow-hidden min-w-0"
+          >
+            <div className="absolute inset-0" style={{ width: "100%", minWidth: "1200px" }}>
+              {Array.from({ length: Math.ceil(duration) + 1 }).map((_, i) => (
+                <div 
+                  key={i} 
+                  className="absolute top-0 bottom-0 border-l border-border/30 text-[9px] font-black text-muted-foreground/70 pl-1 flex items-center select-none"
+                  style={{ left: `${(i / duration) * 100}%` }}
+                >
+                  {i.toFixed(1)}s
+                </div>
+              ))}
+              {/* Playhead vertical line cursor (header part) */}
+              <div 
+                className="absolute top-0 bottom-0 w-px bg-primary z-20 pointer-events-none transition-all duration-75"
+                style={{ left: `${(timelineTime / duration) * 100}%` }}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-primary -translate-x-1/2 absolute -top-0.5" />
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex flex-col divide-y divide-border/20">
+        {/* Scrollable Content Row (Single Vertical Scrollbar) */}
+        <div className="flex flex-1 min-h-0 overflow-y-auto">
+          {/* Track Headers Sidebar Column */}
+          <div className="w-52 shrink-0 border-r border-border/40 flex flex-col bg-card/25 divide-y divide-border/20">
             {entities.map((ent: any) => {
               const isSelected = selectedEntityIds.includes(ent.id);
               return (
@@ -178,75 +208,62 @@ export function TimelinePanel() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Timeline Tracks Visualizer */}
-        <div className="flex-1 flex flex-col relative bg-neutral-950/5 overflow-x-hidden min-w-0">
-          
-          {/* Ruler tick marks spacer */}
-          <div className="h-7 shrink-0 border-b border-border/40 flex relative bg-muted/15">
-            {Array.from({ length: Math.ceil(duration) + 1 }).map((_, i) => (
+          {/* Timeline Tracks Visualizer */}
+          <div 
+            ref={tracksContainerRef}
+            onScroll={(e) => {
+              if (rulerRef.current) {
+                rulerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+              }
+            }}
+            className="flex-1 flex flex-col relative bg-neutral-950/5 overflow-x-auto min-w-0 h-fit"
+          >
+            {/* Inner scrollable width to support horizontal scroll */}
+            <div className="relative h-fit" style={{ minWidth: "1200px" }}>
+              {/* Playhead sweep line aligned with tracks */}
               <div 
-                key={i} 
-                className="absolute top-0 bottom-0 border-l border-border/30 text-[9px] font-black text-muted-foreground/70 pl-1 flex items-center select-none"
-                style={{ left: `${(i / duration) * 100}%` }}
-              >
-                {i.toFixed(1)}s
+                className="absolute top-0 bottom-0 w-px bg-primary/40 z-20 pointer-events-none transition-all duration-75"
+                style={{ left: `${(timelineTime / duration) * 100}%` }}
+              />
+
+              <div className="flex flex-col divide-y divide-border/20">
+                {entities.map((ent: any) => {
+                  const isSelected = selectedEntityIds.includes(ent.id);
+                  const start = ent.startTime ?? 0;
+                  const end = ent.endTime ?? duration;
+                  const leftPercent = (start / duration) * 100;
+                  const widthPercent = ((end - start) / duration) * 100;
+
+                  return (
+                    <div
+                      key={ent.id}
+                      onClick={() => setSelectedEntity(ent.id)}
+                      className={`h-9 shrink-0 relative flex items-center px-4 cursor-pointer transition-colors ${
+                        isSelected ? "bg-primary/5" : "hover:bg-accent/10"
+                      }`}
+                    >
+                      {/* Rounded blue clip presence bar */}
+                      <div
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                        }}
+                        className={`absolute h-5 rounded-md border shadow-sm transition-all flex items-center px-2 select-none z-10 ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary/20 shadow-primary/20"
+                            : "bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 border-sky-400/20"
+                        }`}
+                      >
+                        <span className="text-[9px] font-black truncate leading-none capitalize">
+                          {ent.name || ent.text || ent.clip || "Clip"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-
-            {/* Playhead vertical line cursor */}
-            <div 
-              className="absolute top-0 bottom-0 w-px bg-primary z-20 pointer-events-none transition-all duration-75"
-              style={{ left: `${(timelineTime / duration) * 100}%` }}
-            >
-              <div className="w-1.5 h-1.5 rounded-full bg-primary -translate-x-1/2 absolute -top-0.5" />
             </div>
-          </div>
-
-          {/* Entity Visual Tracks list */}
-          <div className="flex flex-col divide-y divide-border/20 relative">
-            
-            {/* Playhead sweep line aligned with tracks */}
-            <div 
-              className="absolute top-0 bottom-0 w-px bg-primary/40 z-20 pointer-events-none transition-all duration-75"
-              style={{ left: `${(timelineTime / duration) * 100}%` }}
-            />
-
-            {entities.map((ent: any) => {
-              const isSelected = selectedEntityIds.includes(ent.id);
-              const start = ent.startTime ?? 0;
-              const end = ent.endTime ?? duration;
-              const leftPercent = (start / duration) * 100;
-              const widthPercent = ((end - start) / duration) * 100;
-
-              return (
-                <div
-                  key={ent.id}
-                  onClick={() => setSelectedEntity(ent.id)}
-                  className={`h-9 shrink-0 relative flex items-center px-4 cursor-pointer transition-colors ${
-                    isSelected ? "bg-primary/5" : "hover:bg-accent/10"
-                  }`}
-                >
-                  {/* Rounded blue clip presence bar */}
-                  <div
-                    style={{
-                      left: `${leftPercent}%`,
-                      width: `${widthPercent}%`,
-                    }}
-                    className={`absolute h-5 rounded-md border shadow-sm transition-all flex items-center px-2 select-none z-10 ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary/20 shadow-primary/20"
-                        : "bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 border-sky-400/20"
-                    }`}
-                  >
-                    <span className="text-[9px] font-black truncate leading-none capitalize">
-                      {ent.name || ent.text || ent.clip || "Clip"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 

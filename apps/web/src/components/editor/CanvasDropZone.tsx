@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "@/stores/editor-store";
 import { spriteManifest, spriteUrl } from "@stickman/shared";
 import { toast } from "sonner";
@@ -41,8 +41,113 @@ const evaluateProperty = (document: any, entityId: string, property: string, tim
       return kfA.value; // Discrete transition for strings, booleans, clips, texts
     }
   }
-  return defaultValue;
 };
+
+interface CanvasSpriteEntityProps {
+  entity: any;
+  document: any;
+  timelineTime: number;
+  isSelected: boolean;
+  isDraggingThis: boolean;
+  handleMouseDown: (e: React.MouseEvent, id: string) => void;
+}
+
+function CanvasSpriteEntity({
+  entity,
+  document,
+  timelineTime,
+  isSelected,
+  isDraggingThis,
+  handleMouseDown,
+}: CanvasSpriteEntityProps) {
+  const [hasError, setHasError] = useState(false);
+
+  // Reset error state if entity clip/name changes
+  useEffect(() => {
+    setHasError(false);
+  }, [entity.clip, entity.id]);
+
+  // Resolve animated transformations
+  const x = isDraggingThis 
+    ? entity.transform.x 
+    : evaluateProperty(document, entity.id, "transform.x", timelineTime, entity.transform.x);
+  const y = isDraggingThis 
+    ? entity.transform.y 
+    : evaluateProperty(document, entity.id, "transform.y", timelineTime, entity.transform.y);
+  const rotation = evaluateProperty(document, entity.id, "transform.rotation", timelineTime, entity.transform.rotation ?? 0);
+  const scaleX = evaluateProperty(document, entity.id, "transform.scaleX", timelineTime, entity.transform.scaleX ?? 1);
+  const scaleY = evaluateProperty(document, entity.id, "transform.scaleY", timelineTime, entity.transform.scaleY ?? 1);
+  const width = evaluateProperty(document, entity.id, "width", timelineTime, entity.width ?? 120);
+  const height = evaluateProperty(document, entity.id, "height", timelineTime, entity.height ?? 120);
+
+  const clip = evaluateProperty(document, entity.id, "spriteAnimation.clip", timelineTime, entity.clip || "");
+  let frameSrc = "";
+
+  if (clip.startsWith("extras/prop/")) {
+    const propName = clip.split("/").pop()!;
+    frameSrc = `/sprites/Extras/${propName}`;
+  } else if (clip.startsWith("extras/background/")) {
+    const bgName = clip.split("/").pop()!;
+    frameSrc = `/sprites/Extras/${bgName}`;
+  } else {
+    const parsed = clip.split("/");
+    if (parsed.length === 2) {
+      const [character, action] = parsed;
+      const charData = (spriteManifest as any).characters[character];
+      const clipData = charData ? charData[action] : null;
+      if (clipData) {
+        const fps = clipData.fps || 10;
+        const frameIndex = Math.floor(timelineTime * fps) % clipData.frames.length;
+        const frameName = clipData.frames[frameIndex] || clipData.frames[0];
+        frameSrc = spriteUrl(clipData.folder, frameName);
+      }
+    }
+  }
+
+  // If there's no frameSrc or if it failed to load, and it is NOT selected, we render nothing.
+  if ((!frameSrc || hasError) && !isSelected) {
+    return null;
+  }
+
+  return (
+    <div
+      onMouseDown={(e) => handleMouseDown(e, entity.id)}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: "absolute",
+        left: `${x}px`,
+        top: `${y}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `translate(-50%, -100%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
+      }}
+      className={`cursor-grab active:cursor-grabbing rounded transition-shadow overflow-hidden ${
+        isSelected
+          ? "outline-2 outline-dashed outline-sky-400 bg-sky-500/10 shadow-lg shadow-sky-500/10"
+          : "hover:outline-1 hover:outline-dashed hover:outline-muted-foreground/30"
+      }`}
+    >
+      {frameSrc && !hasError ? (
+        <img
+          src={frameSrc}
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          className="object-contain pointer-events-none select-none"
+          alt={entity.name}
+          onError={() => {
+            setHasError(true);
+          }}
+        />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center bg-accent rounded text-[10px] text-muted-foreground select-none">
+          {entity.name || "Sprite"} (Empty)
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function CanvasDropZone() {
   const document = useEditorStore((s) => s.document);
@@ -298,7 +403,7 @@ export function CanvasDropZone() {
         {/* DYNAMIC RENDERING OF VISIBLE ENTITIES */}
         {visibleEntities.map((entity: any) => {
           const isSelected = selectedEntityIds.includes(entity.id);
-          const isDraggingThis = dragState && dragState.entityId === entity.id;
+          const isDraggingThis = !!(dragState && dragState.entityId === entity.id);
 
           // Resolve animated transformations
           const x = isDraggingThis 
@@ -315,69 +420,16 @@ export function CanvasDropZone() {
 
           // 1. SPRITE RENDER (Stickman character actions or standard prop assets)
           if (entity.type === "sprite") {
-            const clip = evaluateProperty(document, entity.id, "spriteAnimation.clip", timelineTime, entity.clip || "");
-            let frameSrc = "";
-
-            if (clip.startsWith("extras/prop/")) {
-              const propName = clip.split("/").pop()!;
-              frameSrc = `/sprites/Extras/${propName}`; // FIXED: mapped to Extras
-            } else if (clip.startsWith("extras/background/")) {
-              const bgName = clip.split("/").pop()!;
-              frameSrc = `/sprites/Extras/${bgName}`; // FIXED: mapped to Extras
-            } else {
-              const parsed = clip.split("/");
-              if (parsed.length === 2) {
-                const [character, action] = parsed;
-                const charData = (spriteManifest as any).characters[character];
-                const clipData = charData ? charData[action] : null;
-                if (clipData) {
-                  const fps = clipData.fps || 10;
-                  const frameIndex = Math.floor(timelineTime * fps) % clipData.frames.length;
-                  const frameName = clipData.frames[frameIndex] || clipData.frames[0];
-                  frameSrc = spriteUrl(clipData.folder, frameName);
-                }
-              }
-            }
-
             return (
-              <div
+              <CanvasSpriteEntity
                 key={entity.id}
-                onMouseDown={(e) => handleMouseDown(e, entity.id)}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  position: "absolute",
-                  left: `${x}px`,
-                  top: `${y}px`,
-                  width: `${width}px`,
-                  height: `${height}px`,
-                  transform: `translate(-50%, -100%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
-                }}
-                className={`cursor-grab active:cursor-grabbing rounded transition-shadow overflow-hidden ${
-                  isSelected
-                    ? "outline-2 outline-dashed outline-sky-400 bg-sky-500/10 shadow-lg shadow-sky-500/10"
-                    : "hover:outline-1 hover:outline-dashed hover:outline-muted-foreground/30"
-                }`}
-              >
-                {frameSrc ? (
-                  <img
-                    src={frameSrc}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                    }}
-                    className="object-contain pointer-events-none select-none"
-                    alt={entity.name}
-                    onError={(e) => {
-                      // fallback for asset path mismatch
-                      (e.target as HTMLElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="h-10 w-10 flex items-center justify-center bg-accent rounded text-[10px] text-muted-foreground">
-                    Sprite
-                  </div>
-                )}
-              </div>
+                entity={entity}
+                document={document}
+                timelineTime={timelineTime}
+                isSelected={isSelected}
+                isDraggingThis={isDraggingThis}
+                handleMouseDown={handleMouseDown}
+              />
             );
           }
 
