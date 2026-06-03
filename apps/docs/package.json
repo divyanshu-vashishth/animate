@@ -1,8 +1,0 @@
-{
-  "name": "@stickman/docs",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "echo 'Docs site stub - see README.md'"
-  }
-}

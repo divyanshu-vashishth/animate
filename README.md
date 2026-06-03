@@ -2,6 +2,10 @@
 
 AI-powered 2D stickman animation editor built as a Turborepo monorepo.
 
+<p align="center">
+  <video src="apps/web/public/landing/stickman_animation_1779616259633.webm" width="600" autoplay loop muted playsinline></video>
+</p>
+
 ## Stack
 
 - **Frontend:** Next.js 15, React, Tailwind, Zustand
@@ -50,4 +54,9 @@ Run `pnpm sprites:manifest` after adding assets.
 
 Copy `.env.example` to `.env` and set `DATABASE_URL` for production Postgres.
 Without `DATABASE_URL`, the API uses an in-memory dev store.
+
+## Contributions
+
+Contributions are welcome!
+
 
