@@ -122,4 +122,9 @@ export const api = {
     fetchApi<{ ok: boolean }>(`/projects/${projectId}`, {
       method: "DELETE",
     }),
+
+  deleteAsset: (assetId: string) =>
+    fetchApi<{ ok: boolean }>(`/assets/${assetId}`, {
+      method: "DELETE",
+    }),
 };

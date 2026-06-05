@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getAuthUser } from "../middleware/session.js";
 import { getDb, assets } from "@stickman/database";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export const assetRoutes = new Hono();
 
@@ -62,3 +62,21 @@ assetRoutes.post("/", async (c) => {
     } 
   });
 });
+
+assetRoutes.delete("/:id", async (c) => {
+  const user = getAuthUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const assetId = c.req.param("id");
+  const db = getDb();
+  
+  const [deletedAsset] = await db
+    .delete(assets)
+    .where(and(eq(assets.id, assetId), eq(assets.userId, user.id)))
+    .returning();
+    
+  if (!deletedAsset) {
+    return c.json({ error: "Asset not found or not owned by you" }, 404);
+  }
+  return c.json({ ok: true });
+});
+

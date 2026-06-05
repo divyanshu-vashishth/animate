@@ -79,6 +79,7 @@ export default function DashboardPage() {
 
   // Custom modals state
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAnimationName, setNewAnimationName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -94,6 +95,20 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to delete project", err);
       toast.error("Failed to delete project");
+    }
+  };
+
+  const confirmDeleteAsset = async () => {
+    if (!assetToDelete) return;
+    const { id, name } = assetToDelete;
+    setAssetToDelete(null);
+    try {
+      await api.deleteAsset(id);
+      setAssets((prev) => prev.filter((a) => a.id !== id));
+      toast.success(`Asset "${name}" deleted successfully`);
+    } catch (err) {
+      console.error("Failed to delete asset", err);
+      toast.error("Failed to delete asset");
     }
   };
 
@@ -157,8 +172,8 @@ export default function DashboardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file (PNG/JPG/SVG/GIF)");
+    if (!file.type.startsWith("image/") && !file.type.startsWith("audio/")) {
+      toast.error("Please upload an image (PNG/JPG/SVG/GIF) or audio file");
       return;
     }
 
@@ -531,7 +546,7 @@ export default function DashboardPage() {
                   className="absolute inset-0 cursor-pointer opacity-0"
                   onChange={handleFileUpload}
                   disabled={uploading}
-                  accept="image/*"
+                  accept="image/*,audio/*"
                 />
                 
                 {uploading ? (
@@ -581,11 +596,17 @@ export default function DashboardPage() {
                   {assets.map((asset) => (
                     <div 
                       key={asset.id} 
-                      className="group flex flex-col justify-between overflow-hidden rounded-lg border border-border/40 bg-neutral-900/50 p-2.5 transition-all duration-300 hover:border-primary/20 hover:bg-neutral-900"
+                      className="group flex flex-col justify-between overflow-hidden rounded-lg border border-border/40 bg-neutral-900/50 p-2.5 transition-all duration-300 hover:border-primary/20 hover:bg-neutral-900 relative"
                     >
-                      {/* Image Thumbnail Container */}
+                      {/* Image/Audio Thumbnail Container */}
                       <div className="relative flex h-24 w-full items-center justify-center rounded bg-neutral-950 p-2 overflow-hidden border border-border/20">
-                        {asset.url.startsWith("data:") || asset.url.startsWith("http") ? (
+                        {asset.type.startsWith("audio/") ? (
+                          <div className="flex flex-col items-center justify-center text-primary/75">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                            </svg>
+                          </div>
+                        ) : asset.url.startsWith("data:") || asset.url.startsWith("http") ? (
                           <img 
                             src={asset.url} 
                             alt={asset.name} 
@@ -594,6 +615,19 @@ export default function DashboardPage() {
                         ) : (
                           <IconPhoto className="h-8 w-8 text-muted-foreground/30" />
                         )}
+
+                        {/* Delete Asset Button overlay */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setAssetToDelete({ id: asset.id, name: asset.name });
+                          }}
+                          className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg border border-border/30 bg-neutral-900/80 text-muted-foreground hover:bg-destructive/20 hover:text-destructive hover:border-destructive/30 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md"
+                          title="Delete Asset"
+                        >
+                          <IconTrash className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                       
                       {/* Asset Details */}
@@ -638,6 +672,40 @@ export default function DashboardPage() {
                 size="sm"
                 onClick={() => {
                   void confirmDelete();
+                }}
+                className="h-8 text-xs font-semibold"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Asset Confirmation Modal */}
+      {assetToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-xl border border-border/50 bg-card/95 p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-sm font-extrabold text-foreground">Delete Asset</h3>
+              <p className="text-xs text-muted-foreground">
+                Are you sure you want to delete <span className="font-bold text-foreground">"{assetToDelete.name}"</span>? This action is permanent and cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2.5 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAssetToDelete(null)}
+                className="h-8 text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  void confirmDeleteAsset();
                 }}
                 className="h-8 text-xs font-semibold"
               >

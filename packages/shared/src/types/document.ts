@@ -76,12 +76,23 @@ export interface StageData {
   backgroundColor?: string;
 }
 
+export interface AudioTrackData {
+  id: string;
+  name: string;
+  url: string;
+  volume: number; // 0 to 1
+  startTime: number; // playhead offset in seconds
+  duration: number; // in seconds
+  audioStartOffset?: number; // offset within the original audio file in seconds
+}
+
 export interface ProjectDocument {
   version: number;
   stage: StageData;
   layers: LayerData[];
   entities: EntityData[];
   timeline?: import("./timeline.js").TimelineData;
+  audioTracks?: AudioTrackData[];
 }
 
 export function createDefaultDocument(): ProjectDocument {

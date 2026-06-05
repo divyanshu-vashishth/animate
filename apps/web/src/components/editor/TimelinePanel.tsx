@@ -9,9 +9,12 @@ import {
   IconMovie,
   IconTypography,
   IconPhoto,
-  IconVideo
+  IconVideo,
+  IconMusic,
+  IconTrash
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export function TimelinePanel() {
   const document = useEditorStore((s) => s.document);
@@ -22,6 +25,8 @@ export function TimelinePanel() {
   const setPlaybackState = useEditorStore((s) => s.setPlaybackState);
   const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
+  const selectedAudioTrackId = useEditorStore((s) => s.selectedAudioTrackId);
+  const setSelectedAudioTrack = useEditorStore((s) => s.setSelectedAudioTrack);
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksContainerRef = useRef<HTMLDivElement>(null);
@@ -202,11 +207,51 @@ export function TimelinePanel() {
               );
             })}
 
-            {entities.length === 0 && (
+            {entities.length === 0 && (!document?.audioTracks || document.audioTracks.length === 0) && (
               <div className="flex-1 flex items-center justify-center p-4 text-[10px] text-muted-foreground/60 italic text-center select-none">
-                No active tracks. Drag sprites or add text!
+                No active tracks. Drag sprites or add text/audio!
               </div>
             )}
+
+            {/* Audio Track Headers */}
+            {document?.audioTracks?.map((track) => {
+              const isSelected = selectedAudioTrackId === track.id;
+              return (
+                <div
+                  key={track.id}
+                  onClick={() => setSelectedAudioTrack(track.id)}
+                  className={`h-9 shrink-0 flex items-center justify-between px-3 text-xs font-semibold cursor-pointer border-t border-border/10 ${
+                    isSelected 
+                      ? "bg-primary/10 border-l-2 border-primary text-primary" 
+                      : "hover:bg-accent/30 text-foreground/80"
+                  } group`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <IconMusic className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                    <span className="truncate flex-1 select-none leading-none capitalize text-[11px] font-bold">
+                      {track.name}
+                    </span>
+                  </div>
+                  
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const updated = document.audioTracks?.filter((t) => t.id !== track.id) || [];
+                      setDocument({ ...document, audioTracks: updated });
+                      if (selectedAudioTrackId === track.id) {
+                        setSelectedAudioTrack(null);
+                      }
+                      toast.success("Removed soundtrack");
+                    }}
+                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                    title="Remove soundtrack"
+                  >
+                    <IconTrash className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           {/* Timeline Tracks Visualizer */}
@@ -258,6 +303,59 @@ export function TimelinePanel() {
                         <span className="text-[9px] font-black truncate leading-none capitalize">
                           {ent.name || ent.text || ent.clip || "Clip"}
                         </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Audio Track Bars */}
+                {document?.audioTracks?.map((track) => {
+                  const isSelected = selectedAudioTrackId === track.id;
+                  const start = track.startTime ?? 0;
+                  const end = start + (track.duration ?? duration);
+                  const leftPercent = (start / duration) * 100;
+                  const widthPercent = (Math.min(track.duration ?? duration, duration - start) / duration) * 100;
+
+                  return (
+                    <div
+                      key={track.id}
+                      onClick={() => setSelectedAudioTrack(track.id)}
+                      className={`h-9 shrink-0 relative flex items-center px-4 cursor-pointer border-t border-border/10 ${
+                        isSelected ? "bg-purple-500/5" : "hover:bg-accent/10"
+                      }`}
+                    >
+                      {/* Canva-style rounded purple presence bar with waveform */}
+                      <div
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                        }}
+                        className={`absolute h-6 rounded-full border shadow-sm transition-all flex items-center justify-between px-3 select-none z-10 ${
+                          isSelected
+                            ? "bg-[#8b3dff] text-white border-[#aa77ff] shadow-[#8b3dff]/25"
+                            : "bg-[#8b3dff]/30 text-purple-200 border-[#8b3dff]/20 hover:bg-[#8b3dff]/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 w-full min-w-0">
+                          <span className="text-[9px] font-black truncate shrink-0 capitalize">
+                            🎵 {track.name}
+                          </span>
+                          
+                          {/* Simulated Waveform */}
+                          <div className="flex-1 h-3 flex items-center gap-[2px] overflow-hidden opacity-60">
+                            {Array.from({ length: 80 }).map((_, idx) => {
+                              const heights = [25, 45, 15, 60, 30, 80, 20, 50, 75, 40, 90, 35, 70, 55, 85, 25, 65, 40, 50, 75, 10, 35, 50, 85, 20, 45, 70, 30, 60, 45];
+                              const h = heights[idx % heights.length];
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={`w-[1.5px] rounded-full shrink-0 ${isSelected ? "bg-white" : "bg-purple-300"}`}
+                                  style={{ height: `${h}%` }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );

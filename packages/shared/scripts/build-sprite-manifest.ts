@@ -3,7 +3,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SPRITES_ROOT = join(__dirname, "../../../assets/sprites");
+const SPRITES_ROOT = join(__dirname, "../../../apps/web/public/sprites");
 const OUT_PATH = join(__dirname, "../src/sprite-manifest.json");
 
 const CHARACTERS = ["fighter", "pistol", "sword"] as const;

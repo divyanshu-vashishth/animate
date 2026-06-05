@@ -11,6 +11,7 @@ import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
 import { AUTOSAVE_DEBOUNCE_MS, spriteManifest } from "@stickman/shared";
+import { AudioSyncController } from "@/components/editor/AudioSyncController";
 import {
   IconVideo,
   IconTypography,
@@ -24,7 +25,8 @@ import {
   IconSparkles,
   IconCloudUpload,
   IconLoader2,
-  IconLock
+  IconLock,
+  IconMusic
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -392,6 +394,101 @@ export default function EditorPage() {
     }
   };
 
+  const handleAddAudioTrack = (name: string, url: string) => {
+    if (!document) return;
+    const newTrack = {
+      id: crypto.randomUUID(),
+      name,
+      url,
+      volume: 0.8,
+      startTime: 0,
+      duration: document.timeline?.duration ?? 10,
+    };
+    const updatedAudio = [...(document.audioTracks || []), newTrack];
+    setDocument({
+      ...document,
+      audioTracks: updatedAudio,
+    });
+    toast.success(`Added soundtrack "${name}" to timeline`);
+  };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("audio/")) {
+      toast.error("Please upload an audio file (MP3/WAV/M4A)");
+      return;
+    }
+
+    // Limit check: 3MB limit
+    const totalUploadSize = customAssets.reduce((sum, a) => sum + (Number(a.metadata?.size) || 0), 0);
+    if (totalUploadSize + file.size > 3 * 1024 * 1024) {
+      setShowUpgradeModal(true);
+      toast.error("Upload limit exceeded! Free accounts are limited to 3MB of total assets storage.");
+      return;
+    }
+
+    setUploadingAsset(true);
+    const toastId = toast.loading("Uploading audio to Cloud Storage...");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Url = reader.result as string;
+
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+      let fileUrl = base64Url;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const fileExt = file.name.split(".").pop() || "mp3";
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+          const filePath = `${fileName}`;
+
+          const storageRes = await fetch(`${supabaseUrl}/storage/v1/object/assets/${filePath}`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${supabaseKey}`,
+              "apikey": supabaseKey,
+            },
+            body: file,
+          });
+
+          if (storageRes.ok) {
+            fileUrl = `${supabaseUrl}/storage/v1/object/public/assets/${filePath}`;
+          }
+        } catch (err) {
+          console.error("Failed to upload audio, falling back to base64:", err);
+        }
+      }
+
+      try {
+        const { asset } = await api.uploadAsset(file.name, file.type, fileUrl, { size: file.size });
+        setCustomAssets((prev) => [asset, ...prev]);
+
+        // Add to project document audio tracks
+        handleAddAudioTrack(asset.name.replace(/\.[^/.]+$/, ""), asset.url);
+
+        toast.dismiss(toastId);
+      } catch (err) {
+        toast.dismiss(toastId);
+        toast.error("Failed to save audio asset to database");
+      } finally {
+        setUploadingAsset(false);
+      }
+    };
+
+    reader.onerror = () => {
+      toast.dismiss(toastId);
+      toast.error("Error reading file");
+      setUploadingAsset(false);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   // AI storyboard and layers generator
   const handleEnhanceScript = async () => {
     if (!aiPrompt.trim()) {
@@ -693,6 +790,7 @@ export default function EditorPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground relative">
+      <AudioSyncController />
 
       {/* EXPORT OVERLAY SCREEN */}
       {exportProgress !== null && (
@@ -759,6 +857,19 @@ export default function EditorPage() {
           >
             <IconPhoto className="h-5 w-5" />
             <span className="text-[8px] font-bold mt-1">Media</span>
+          </button>
+
+          {/* Audio tab */}
+          <button
+            onClick={() => handleTabClick("audio")}
+            className={`flex h-11.5 w-11.5 flex-col items-center justify-center rounded-xl transition-all duration-200 ${leftPanelTab === "audio"
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.03]"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+              }`}
+            title="Audio Tracks"
+          >
+            <IconMusic className="h-5 w-5" />
+            <span className="text-[8px] font-bold mt-1">Audio</span>
           </button>
 
           {/* AI Copilot tab */}
@@ -1050,6 +1161,107 @@ export default function EditorPage() {
                   ) : (
                     <AssetsPanel className="flex-1 min-h-0" />
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: AUDIO TRACKS */}
+            {leftPanelTab === "audio" && (
+              <div className="flex flex-col h-full">
+                <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Audio & Soundtracks
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                  
+                  {/* Upload Audio File */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                      Upload Sound / Song
+                    </Label>
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-border/40 rounded-xl cursor-pointer bg-card/20 hover:bg-accent/30 hover:border-primary/40 transition-all text-center px-4 gap-1.5 relative group">
+                      {uploadingAsset ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <IconLoader2 className="h-5 w-5 animate-spin text-primary" />
+                          <span className="text-[9px] font-bold text-muted-foreground">Uploading audio...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <IconUpload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                          <span className="text-[9px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">Upload Audio</span>
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            onChange={handleAudioUpload}
+                            className="hidden"
+                            disabled={uploadingAsset}
+                          />
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Standard / Available Songs */}
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                      Library Soundtracks
+                    </Label>
+                    <div className="flex flex-col gap-1.5">
+                      <div 
+                        onClick={() => handleAddAudioTrack("Cornfield Chase - Hans Zimmer", "/songs/Cornfield Chase - Hans Zimmer.m4a")}
+                        className="group flex items-center justify-between cursor-pointer rounded-lg border border-border/30 bg-neutral-900/40 p-2.5 hover:border-primary/40 hover:bg-accent/30 transition-all duration-150"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <IconMusic className="h-4 w-4 text-primary shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-[10.5px] font-bold text-foreground">Cornfield Chase</span>
+                            <span className="text-[8.5px] text-muted-foreground font-medium">Hans Zimmer</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 select-none">
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-primary">Add</span>
+                          <IconPlus className="h-3 w-3 text-primary" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* User Uploaded Sounds */}
+                  <div className="flex flex-col gap-2 flex-1 min-h-0">
+                    <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+                      Your Uploaded Audio
+                    </Label>
+                    {loadingCustomAssets ? (
+                      <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-[10px]">
+                        <IconLoader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span>Loading files...</span>
+                      </div>
+                    ) : customAssets.filter(a => a.type?.startsWith("audio/")).length === 0 ? (
+                      <div className="text-[10px] text-muted-foreground/60 text-center py-6 border border-dashed border-border/30 rounded-xl bg-card/10 select-none">
+                        No audio uploads. Upload songs above!
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5 overflow-y-auto max-h-48 pr-1">
+                        {customAssets.filter(a => a.type?.startsWith("audio/")).map((asset) => (
+                          <div
+                            key={asset.id}
+                            onClick={() => handleAddAudioTrack(asset.name.replace(/\.[^/.]+$/, ""), asset.url)}
+                            className="group flex items-center justify-between cursor-pointer rounded-lg border border-border/30 bg-neutral-900/40 p-2 hover:border-primary/40 hover:bg-accent/30 transition-all duration-150"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <IconMusic className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <span className="truncate text-[10px] font-bold text-foreground">
+                                {asset.name.replace(/\.[^/.]+$/, "")}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 select-none">
+                              <span className="text-[8px] font-bold uppercase tracking-wider text-primary">Add</span>
+                              <IconPlus className="h-3 w-3 text-primary" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
