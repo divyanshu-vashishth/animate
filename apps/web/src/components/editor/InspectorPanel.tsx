@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EditorPanel } from "./editor-panel";
-import { IconTrash, IconMusic } from "@tabler/icons-react";
+import { IconTrash, IconMusic, IconArrowUp, IconArrowDown, IconArrowBarUp, IconArrowBarDown } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 export function InspectorPanel({ className }: { className?: string }) {
@@ -16,6 +16,7 @@ export function InspectorPanel({ className }: { className?: string }) {
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
   const selectedAudioTrackId = useEditorStore((s) => s.selectedAudioTrackId);
   const setSelectedAudioTrack = useEditorStore((s) => s.setSelectedAudioTrack);
+  const reorderEntity = useEditorStore((s) => s.reorderEntity);
 
   const duration = document?.timeline?.duration ?? 10;
   const entityId = selectedEntityIds[0];
@@ -498,6 +499,71 @@ export function InspectorPanel({ className }: { className?: string }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+
+        {/* SECTION: ARRANGEMENT / LAYERING */}
+        <div className="flex flex-col gap-2">
+          <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+            Arrangement
+          </h4>
+          <div className="grid grid-cols-2 gap-2 bg-muted/20 p-2.5 rounded-lg border border-border/20">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reorderEntity(entity.id, "up");
+                toast.success(`Moved "${entity.name || "element"}" forward`);
+              }}
+              className="h-8 text-[10px] font-bold gap-1 hover:border-primary/40"
+              title="Bring Forward"
+            >
+              <IconArrowUp className="h-3.5 w-3.5" />
+              Bring Forward
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reorderEntity(entity.id, "down");
+                toast.success(`Moved "${entity.name || "element"}" backward`);
+              }}
+              className="h-8 text-[10px] font-bold gap-1 hover:border-primary/40"
+              title="Send Backward"
+            >
+              <IconArrowDown className="h-3.5 w-3.5" />
+              Send Backward
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reorderEntity(entity.id, "top");
+                toast.success(`Brought "${entity.name || "element"}" to front`);
+              }}
+              className="h-8 text-[10px] font-bold gap-1 hover:border-primary/40 col-span-1"
+              title="Bring to Front"
+            >
+              <IconArrowBarUp className="h-3.5 w-3.5" />
+              Bring to Front
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reorderEntity(entity.id, "bottom");
+                toast.success(`Sent "${entity.name || "element"}" to back`);
+              }}
+              className="h-8 text-[10px] font-bold gap-1 hover:border-primary/40 col-span-1"
+              title="Send to Back"
+            >
+              <IconArrowBarDown className="h-3.5 w-3.5" />
+              Send to Back
+            </Button>
           </div>
         </div>
 

@@ -220,17 +220,19 @@ export function CanvasDropZone() {
     } else if (clip.startsWith("extras/background/")) {
       const filename = clip.split("/").pop()!;
       const cleanName = filename.replace(".png", "");
+      const docWidth = document.stage.width || 640;
+      const docHeight = document.stage.height || 360;
       newEntity = {
         id: crypto.randomUUID(),
         type: "sprite" as const,
         name: cleanName,
         layerId: document.layers[0]?.id || "default-layer",
         clip,
-        transform: { x: 320, y: 360, rotation: 0, scaleX: 1, scaleY: 1 },
+        transform: { x: docWidth / 2, y: docHeight, rotation: 0, scaleX: 1, scaleY: 1 },
         startTime: 0,
         endTime: document.timeline?.duration ?? 5,
-        width: 640,
-        height: 360,
+        width: docWidth,
+        height: docHeight,
       };
     } else {
       const parsed = clip.split("/");
@@ -385,14 +387,18 @@ export function CanvasDropZone() {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* 640x360 WHITE CANVAS CONTAINER */}
+      {/* DYNAMIC STAGE CANVAS CONTAINER */}
       <div
         ref={canvasRef}
         onDragOver={onDragOver}
         onDrop={onDrop}
         onClick={handleViewportClick}
-        style={{ backgroundColor: activeBg }}
-        className="relative h-[360px] w-[640px] shadow-2xl rounded-lg border border-border/10 overflow-hidden"
+        style={{ 
+          backgroundColor: activeBg,
+          width: `${document?.stage?.width || 640}px`,
+          height: `${document?.stage?.height || 360}px`
+        }}
+        className="relative shadow-2xl rounded-lg border border-border/10 overflow-hidden transition-all duration-300 shrink-0"
       >
         {/* BLACK BASE LINE */}
         <div 

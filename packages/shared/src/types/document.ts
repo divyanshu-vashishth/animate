@@ -95,12 +95,26 @@ export interface ProjectDocument {
   audioTracks?: AudioTrackData[];
 }
 
-export function createDefaultDocument(): ProjectDocument {
+export function createDefaultDocument(preset: "16:9" | "9:16" | "1:1" | "4:3" = "16:9"): ProjectDocument {
   const bgLayerId = crypto.randomUUID();
   const charLayerId = crypto.randomUUID();
+  
+  let width = 640;
+  let height = 360;
+  if (preset === "9:16") {
+    width = 360;
+    height = 640;
+  } else if (preset === "1:1") {
+    width = 500;
+    height = 500;
+  } else if (preset === "4:3") {
+    width = 480;
+    height = 360;
+  }
+
   return {
     version: 1,
-    stage: { width: 1920, height: 1080, backgroundColor: "#171717" },
+    stage: { width, height, backgroundColor: "#FFFFFF" },
     layers: [
       { id: bgLayerId, name: "Background", order: 0, visible: true, locked: false },
       { id: charLayerId, name: "Characters", order: 1, visible: true, locked: false },

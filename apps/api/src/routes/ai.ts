@@ -90,10 +90,20 @@ aiRoutes.post("/generate", async (c) => {
 // Step 1: Enhance prompt using Gemini
 aiRoutes.post("/enhance", async (c) => {
   if (!getAuthUser(c)) return c.json({ error: "Unauthorized" }, 401);
-  const body = await c.req.json<{ prompt: string; availableSprites?: any; customUploads?: any }>();
+  const body = await c.req.json<{
+    prompt: string;
+    availableSprites?: any;
+    customUploads?: any;
+    width?: number;
+    height?: number;
+  }>();
   if (!body.prompt || !body.prompt.trim()) {
     return c.json({ error: "Prompt is required" }, 400);
   }
+
+  const width = body.width ?? 640;
+  const height = body.height ?? 360;
+  const baseline = height - 60;
 
   try {
     let assetsContext = "";
@@ -107,8 +117,22 @@ If custom uploaded media assets are listed, incorporate them into the actions/st
 `;
     }
 
-    const promptMessage = `You are a master storyboarder and animator assistant. The user wants to animate a scene described as: "${body.prompt}". Enhance this simple script into a detailed, time-coded animation plan (storyboard) for a 10-second 2D stickman animation. The screen width is 640px, height is 360px, ground baseline is at Y = 300px.${assetsContext}
-Explain what characters or assets start at what times, what actions they do, and how they move (positions, flipping, rotations). Format it as a clear bullet-pointed outline with exact time frames (e.g. 0.0s - 10.0s) for each character. Keep it compact and professional.`;
+    const promptMessage = `You are a master storyboarder and animator assistant. The user wants to animate a scene described as: "${body.prompt}". Enhance this simple script into a detailed, time-coded animation plan (storyboard) for a 10-second 2D stickman animation. The screen width is ${width}px, height is ${height}px, ground baseline is at Y = ${baseline}px.${assetsContext}
+
+STYLE & MOVEMENT INSTRUCTIONS:
+- The animation must look like high-quality, high-impact stickman combat sequences (like fluid ninja/fighter stickman videos).
+- Leverage these specific character actions for combat:
+  * "fighter" character actions: 'idle', 'walk', 'run', 'dash', 'slide', 'jump', 'hit', 'air_attack', 'combo' (delivers a multi-hit combat strike combo), 'death'.
+  * "sword" character actions: 'idle', 'walk', 'run', 'dash', 'jump', 'hit', 'combo' (delivers a cool sword slash combo), 'air_attack', 'death'.
+  * "pistol" character actions: 'idle', 'walk', 'run', 'dash', 'jump', 'slide', 'shot' (shoots pistol bullets), 'wallslide'.
+- For a premium fight choreography, include:
+  1. Quick closing/opening of distance using 'dash' or 'slide'.
+  2. Jumping dodge maneuvers (Y moving up to ${baseline - 100} or ${baseline - 150} during a jump and back down).
+  3. Unleashing intense attacks using the 'combo' clip (e.g. 'fighter/combo' or 'sword/combo') or 'pistol/shot' clip.
+  4. The opponent reacting to the attack immediately at the contact frame using 'hit', sliding backwards, or falling to the ground in 'death'.
+  5. Direction flips ('scaleX') so they face each other (e.g., scaleX is 1 when looking right, -1 when looking left).
+  6. Props (like buildings, grass, etc.) or backgrounds if available in the workspace.
+- Format the output as a clear bullet-pointed outline with exact time frames (e.g. 0.0s - 10.0s) for each character. Keep it compact and professional.`;
 
     const enhanced = await callGemini(promptMessage);
     return c.json({ enhanced });
@@ -122,7 +146,13 @@ Explain what characters or assets start at what times, what actions they do, and
 aiRoutes.post("/generate-layers", async (c) => {
   if (!getAuthUser(c)) return c.json({ error: "Unauthorized" }, 401);
 
-  let body: { enhancedPrompt: string; availableSprites?: any; customUploads?: any };
+  let body: {
+    enhancedPrompt: string;
+    availableSprites?: any;
+    customUploads?: any;
+    width?: number;
+    height?: number;
+  };
   try {
     body = await c.req.json();
   } catch {
@@ -132,6 +162,10 @@ aiRoutes.post("/generate-layers", async (c) => {
   if (!body.enhancedPrompt || !body.enhancedPrompt.trim()) {
     return c.json({ error: "Enhanced prompt/storyboard is required" }, 400);
   }
+
+  const width = body.width ?? 640;
+  const height = body.height ?? 360;
+  const baseline = height - 60;
 
   try {
     let assetsContext = "";
@@ -153,19 +187,25 @@ Important for Custom Uploads: If the storyboard mentions a custom uploaded media
     const promptMessage = `You are an animation compiler. Translate the following storyboard plan into a structured JSON project document for a 2D animation:
 "${body.enhancedPrompt}"
 
+const workspaceProperties = {
+  "width": ${width},
+  "height": ${height},
+  "baselineY": ${baseline}
+};
+
 The workspace properties are:
-- Canvas viewport: 640px wide, 360px high.
-- Baseline ground floor is at Y = 300. Characters stand on this baseline (e.g. Y = 300, or Y = 200 if jumping).
+- Canvas viewport: ${width}px wide, ${height}px high.
+- Baseline ground floor is at Y = ${baseline}. Characters stand on this baseline (e.g. Y = ${baseline}, or Y = ${baseline - 120} if jumping or in mid-air).
 - Maximum duration is 10.0 seconds.
 ${assetsContext}
 
 Output format:
-Return ONLY a valid JSON object matching the following structure. Do not include markdown code block syntax (like \`\`\`json). Do not include any pre- or post-text. The response must be strictly valid JSON.
+Return ONLY a valid JSON object matching the structure below. Do not include markdown code block syntax (like \`\`\`json). Do not include any pre- or post-text. The response must be strictly valid JSON.
 
 JSON Structure:
 {
   "layers": [
-    { "id": "string (unique)", "name": "string (e.g. Background, Fighter Layer)", "order": number, "visible": true, "locked": false }
+    { "id": "string (unique)", "name": "string (e.g. Background, Characters)", "order": number, "visible": true, "locked": false }
   ],
   "entities": [
     {
@@ -173,10 +213,10 @@ JSON Structure:
       "type": "sprite" or "text" or "image",
       "name": "string",
       "layerId": "string (from layers)",
-      "clip": "string (e.g. 'fighter/run' for character pose, or 'extras/prop/building1.png' for props, or 'extras/background/background1.png')",
+      "clip": "string (format: '<character_name>/<action>' e.g. 'fighter/run', 'sword/combo', 'pistol/shot', or prop 'extras/prop/building1.png', or background 'extras/background/background1.png')",
       "src": "omit for image entities (client restores by name)",
       "text": "string (only if type is text)",
-      "transform": { "x": number (default X position), "y": number (default Y position, e.g. 300), "rotation": number (default 0), "scaleX": number (1 or -1 for horizontal flip), "scaleY": number (1 or -1) },
+      "transform": { "x": number (default X position), "y": number (default Y position, e.g. ${baseline}), "rotation": number (default 0), "scaleX": number (1 or -1 for horizontal flip), "scaleY": number (1 or -1) },
       "startTime": number (start time in seconds),
       "endTime": number (end time in seconds),
       "width": number (default width, e.g. 120 for characters, larger for background props),
@@ -199,13 +239,13 @@ JSON Structure:
   }
 }
 
-Important Rules:
-1. Every entity must have a unique ID, and its tracks must reference that same ID.
-2. Character clip action transitions (like run to combo) must be defined as keyframes under property "spriteAnimation.clip" at correct timestamps, e.g., at time 0.0 value is "fighter/run", at time 2.0 value is "fighter/combo", at time 7.5 value is "fighter/death".
-3. Coordinate changes (like movement across screen) must be keyframed under "transform.x" and "transform.y" at matching times.
-4. Scale changes (like flipping) must be keyframed under "transform.scaleX" (e.g. value 1 for right, -1 for left).
-5. All IDs must be valid random UUIDs or short unique string identifiers.
-6. The JSON must be perfectly correct. Double-check all brackets.`;
+CHOREOGRAPHY & MOTION RULES:
+1. Every character entity MUST stand on the baseline Y = ${baseline} when grounded.
+2. For jump moves or air strikes (e.g. air_attack), animate "transform.y" to rise (e.g., Y decreases to ${baseline - 120} or ${baseline - 150}) and then descend back to Y = ${baseline}.
+3. Clip transitions must be keyframed under property "spriteAnimation.clip" at precise timestamps (e.g., time 0.0 value is "fighter/idle", time 1.0 value is "fighter/run", time 2.0 value is "fighter/combo", time 3.5 value is "fighter/hit", time 4.5 value is "fighter/death").
+4. Always face characters towards each other using keyframes on "transform.scaleX" (e.g., set scaleX = 1 for character facing right, set scaleX = -1 for character facing left).
+5. Ensure actions are synced! If Fighter attacks with a combo at t=2.0s, the opponent's position "transform.x" or clip "spriteAnimation.clip" must react at t=2.0s (e.g. transitioning to "hit" or "death", or sliding back by changing transform.x).
+6. Every entity must have a unique ID, and its tracks must reference that same ID. All IDs must be valid random UUIDs.`;
 
     const rawJson = await callGemini(promptMessage, true);
     const cleanedJson = cleanGeminiJsonResponse(rawJson);

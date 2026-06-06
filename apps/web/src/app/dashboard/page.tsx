@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAnimationName, setNewAnimationName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<"16:9" | "9:16" | "1:1" | "4:3">("16:9");
 
   const confirmDelete = async () => {
     if (!projectToDelete) return;
@@ -111,12 +112,35 @@ export default function DashboardPage() {
       toast.error("Failed to delete asset");
     }
   };
-
+  const layouts = [                  {
+                    id: "16:9" as const,
+                    name: "Landscape (16:9)",
+                    desc: "YouTube, Presentation (640×360)",
+                    shape: "w-12 h-7 rounded border-2 border-current opacity-70",
+                  },
+                  {
+                    id: "9:16" as const,
+                    name: "Vertical (9:16)",
+                    desc: "TikTok, Instagram Reels (360×640)",
+                    shape: "w-7 h-12 rounded border-2 border-current opacity-70",
+                  },
+                  {
+                    id: "1:1" as const,
+                    name: "Square (1:1)",
+                    desc: "Instagram, Social Posts (500×500)",
+                    shape: "w-9 h-9 rounded border-2 border-current opacity-70",
+                  },
+                  {
+                    id: "4:3" as const,
+                    name: "Standard (4:3)",
+                    desc: "Classical Video, Retro (480×360)",
+                    shape: "w-11.5 h-8.5 rounded border-2 border-current opacity-70",
+                  }]
   const handleConfirmCreate = async () => {
     if (!newAnimationName.trim() || creating) return;
     setCreating(true);
     try {
-      const { project } = await api.createProject(newAnimationName.trim());
+      const { project } = await api.createProject(newAnimationName.trim(), selectedPreset);
       toast.success("Animation created successfully!");
       setShowCreateModal(false);
       setNewAnimationName("");
@@ -719,21 +743,24 @@ export default function DashboardPage() {
       {/* Create Animation Custom Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-xl border border-border/50 bg-card/95 p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
+          <div className="w-full max-w-md rounded-xl border border-border/50 bg-card/95 p-6 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
               <h3 className="text-sm font-extrabold text-foreground">Create New Animation</h3>
               <p className="text-xs text-muted-foreground">
-                Give your animation a name to get started.
+                Select your stage layout preset and name your animation.
               </p>
             </div>
+            
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-anim-name" className="text-xs text-muted-foreground font-semibold">Animation Name</Label>
+              <Label htmlFor="new-anim-name" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80 select-none">
+                Animation Name
+              </Label>
               <Input
                 id="new-anim-name"
                 value={newAnimationName}
                 onChange={(e) => setNewAnimationName(e.target.value)}
-                placeholder="My Awesome Stickman Animation"
-                className="h-9 text-xs font-semibold px-2 py-0.5"
+                placeholder="My Awesome Fighting Sequence"
+                className="h-9 text-xs font-semibold px-3 py-1.5"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -742,7 +769,40 @@ export default function DashboardPage() {
                 }}
               />
             </div>
-            <div className="flex justify-end gap-2.5 mt-2">
+
+            {/* Layout Preset Selector */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80 select-none">
+                Select Stage Layout (Aspect Ratio)
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                {layouts.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedPreset(item.id)}
+                    className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
+                      selectedPreset === item.id
+                        ? "border-primary bg-primary/5 text-primary shadow-sm ring-1 ring-primary"
+                        : "border-border/40 bg-neutral-900/10 hover:border-border hover:bg-neutral-900/30 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <div className="flex w-14 justify-center items-center shrink-0 text-foreground">
+                      <div className={item.shape} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold truncate text-foreground">
+                        {item.name}
+                      </span>
+                      <span className="text-[9px] font-medium leading-normal mt-0.5 text-muted-foreground/80">
+                        {item.desc}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 mt-3 pt-3 border-t border-border/20">
               <Button
                 variant="outline"
                 size="sm"
@@ -760,13 +820,13 @@ export default function DashboardPage() {
                 onClick={() => {
                   void handleConfirmCreate();
                 }}
-                className="h-8 text-xs font-semibold"
+                className="h-8 text-xs font-semibold shadow-lg shadow-primary/10"
                 disabled={creating || !newAnimationName.trim()}
               >
                 {creating ? (
-                  <IconLoader2 className="h-3 w-3 animate-spin mr-1" />
+                  <IconLoader2 className="h-3 w-3 animate-spin mr-1.5" />
                 ) : null}
-                Create
+                Create Project
               </Button>
             </div>
           </div>

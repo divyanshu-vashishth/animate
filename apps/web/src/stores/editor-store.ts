@@ -30,6 +30,7 @@ interface EditorState {
   setSaving: (saving: boolean) => void;
   setLeftPanelTab: (tab: string | null) => void;
   setInspectorCollapsed: (collapsed: boolean) => void;
+  reorderEntity: (entityId: string, direction: "up" | "down" | "top" | "bottom") => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -80,4 +81,44 @@ export const useEditorStore = create<EditorState>((set) => ({
   setLeftPanelTab: (leftPanelTab) => set({ leftPanelTab }),
 
   setInspectorCollapsed: (inspectorCollapsed) => set({ inspectorCollapsed }),
+
+  reorderEntity: (entityId, direction) =>
+    set((state) => {
+      if (!state.document) return {};
+      const entities = [...state.document.entities];
+      const index = entities.findIndex((ent) => ent.id === entityId);
+      if (index === -1) return {};
+
+      if (direction === "up") {
+        if (index === entities.length - 1) return {}; // Already at top of rendering order (end of array)
+        const temp = entities[index]!;
+        entities[index] = entities[index + 1]!;
+        entities[index + 1] = temp;
+      } else if (direction === "down") {
+        if (index === 0) return {}; // Already at bottom of rendering order (start of array)
+        const temp = entities[index]!;
+        entities[index] = entities[index - 1]!;
+        entities[index - 1] = temp;
+      } else if (direction === "top") {
+        if (index === entities.length - 1) return {};
+        const [item] = entities.splice(index, 1);
+        if (item) {
+          entities.push(item);
+        }
+      } else if (direction === "bottom") {
+        if (index === 0) return {};
+        const [item] = entities.splice(index, 1);
+        if (item) {
+          entities.unshift(item);
+        }
+      }
+
+      return {
+        document: {
+          ...state.document,
+          entities,
+        },
+        isDirty: true,
+      };
+    }),
 }));

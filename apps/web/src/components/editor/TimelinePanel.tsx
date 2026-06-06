@@ -11,7 +11,9 @@ import {
   IconPhoto,
   IconVideo,
   IconMusic,
-  IconTrash
+  IconTrash,
+  IconChevronUp,
+  IconChevronDown
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -27,6 +29,7 @@ export function TimelinePanel() {
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
   const selectedAudioTrackId = useEditorStore((s) => s.selectedAudioTrackId);
   const setSelectedAudioTrack = useEditorStore((s) => s.setSelectedAudioTrack);
+  const reorderEntity = useEditorStore((s) => s.reorderEntity);
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksContainerRef = useRef<HTMLDivElement>(null);
@@ -187,22 +190,57 @@ export function TimelinePanel() {
         <div className="flex flex-1 min-h-0 overflow-y-auto">
           {/* Track Headers Sidebar Column */}
           <div className="w-52 shrink-0 border-r border-border/40 flex flex-col bg-card/25 divide-y divide-border/20">
-            {entities.map((ent: any) => {
+            {[...entities].reverse().map((ent: any, idxReversed: number) => {
               const isSelected = selectedEntityIds.includes(ent.id);
+              const originalIdx = entities.length - 1 - idxReversed;
               return (
                 <div
                   key={ent.id}
                   onClick={() => setSelectedEntity(ent.id)}
-                  className={`h-9 shrink-0 flex items-center gap-2.5 px-3 cursor-pointer text-xs font-semibold transition-all duration-150 ${
+                  className={`h-9 shrink-0 flex items-center justify-between px-3 cursor-pointer text-xs font-semibold transition-all duration-150 ${
                     isSelected 
                       ? "bg-primary/10 border-l-2 border-primary text-primary" 
                       : "hover:bg-accent/30 text-foreground/80"
-                  }`}
+                  } group`}
                 >
-                  {getEntityIcon(ent.type)}
-                  <span className="truncate flex-1 select-none leading-none capitalize text-[11px]">
-                    {ent.name || ent.text || ent.clip || "Untitled Clip"}
-                  </span>
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {getEntityIcon(ent.type)}
+                    <span className="truncate select-none leading-none capitalize text-[11px]">
+                      {ent.name || ent.text || ent.clip || "Untitled Clip"}
+                    </span>
+                  </div>
+                  {isSelected && (
+                    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        type="button"
+                        size="icon-xs"
+                        variant="ghost"
+                        className="h-5 w-5 p-0 hover:text-primary text-muted-foreground/60 hover:bg-accent/50"
+                        onClick={() => {
+                          reorderEntity(ent.id, "up");
+                          toast.success(`Moved "${ent.name || "element"}" up`);
+                        }}
+                        disabled={originalIdx === entities.length - 1}
+                        title="Move layer up (Bring Forward)"
+                      >
+                        <IconChevronUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-xs"
+                        variant="ghost"
+                        className="h-5 w-5 p-0 hover:text-primary text-muted-foreground/60 hover:bg-accent/50"
+                        onClick={() => {
+                          reorderEntity(ent.id, "down");
+                          toast.success(`Moved "${ent.name || "element"}" down`);
+                        }}
+                        disabled={originalIdx === 0}
+                        title="Move layer down (Send Backward)"
+                      >
+                        <IconChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -273,7 +311,7 @@ export function TimelinePanel() {
               />
 
               <div className="flex flex-col divide-y divide-border/20">
-                {entities.map((ent: any) => {
+                {[...entities].reverse().map((ent: any) => {
                   const isSelected = selectedEntityIds.includes(ent.id);
                   const start = ent.startTime ?? 0;
                   const end = ent.endTime ?? duration;

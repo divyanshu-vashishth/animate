@@ -504,10 +504,13 @@ export default function EditorPage() {
         backgrounds: spriteManifest.backgrounds,
       };
       const customUploads = document.entities
-        .filter((e: any) => e.type === "image")
-        .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
+          .filter((e: any) => e.type === "image")
+          .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
 
-      const res = await api.enhanceScript(aiPrompt, availableSprites, customUploads);
+      const docWidth = document.stage.width || 640;
+      const docHeight = document.stage.height || 360;
+
+      const res = await api.enhanceScript(aiPrompt, availableSprites, customUploads, docWidth, docHeight);
       setEnhancedPrompt(res.enhanced);
       toast.success("Script enhanced! You can now compile the layers.");
     } catch (err: any) {
@@ -531,10 +534,13 @@ export default function EditorPage() {
         backgrounds: spriteManifest.backgrounds,
       };
       const customUploads = document.entities
-        .filter((e: any) => e.type === "image")
-        .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
+          .filter((e: any) => e.type === "image")
+          .map((e: any) => ({ name: e.name, type: e.type, width: e.width, height: e.height }));
 
-      const docData = await api.generateAiLayers(enhancedPrompt, availableSprites, customUploads);
+      const docWidth = document.stage.width || 640;
+      const docHeight = document.stage.height || 360;
+
+      const docData = await api.generateAiLayers(enhancedPrompt, availableSprites, customUploads, docWidth, docHeight);
       if (docData && docData.layers && docData.entities) {
         const imageSrcByName = new Map(
           document.entities
@@ -603,19 +609,22 @@ export default function EditorPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const docWidth = document.stage.width || 640;
+    const docHeight = document.stage.height || 360;
+
     ctx.save();
-    // Scale standard 640x360 coordinates to the actual buffer canvas dimensions (e.g. 1280x720)
-    const scaleCanvasX = canvas.width / 640;
-    const scaleCanvasY = canvas.height / 360;
+    // Scale standard stage coordinates to the actual buffer canvas dimensions (e.g. 1280x720)
+    const scaleCanvasX = canvas.width / docWidth;
+    const scaleCanvasY = canvas.height / docHeight;
     ctx.scale(scaleCanvasX, scaleCanvasY);
 
     // 1. Draw stage background
     ctx.fillStyle = document.stage.backgroundColor || "#FFFFFF";
-    ctx.fillRect(0, 0, 640, 360);
+    ctx.fillRect(0, 0, docWidth, docHeight);
 
     // 2. Draw ground baseline
     ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 300, 640, 3);
+    ctx.fillRect(0, docHeight - 60, docWidth, 3);
 
     // 3. Filter visible entities
     const visible = document.entities.filter((entity: any) => {
@@ -725,8 +734,28 @@ export default function EditorPage() {
 
     // Create offscreen buffer canvas
     const canvas = window.document.createElement("canvas");
-    canvas.width = 1280; // Render at premium 720p HD resolution instead of 360p
-    canvas.height = 720;
+    const docWidth = document.stage.width || 640;
+    const docHeight = document.stage.height || 360;
+    let targetWidth = 1280;
+    let targetHeight = 720;
+
+    if (docWidth === docHeight) {
+      targetWidth = 720;
+      targetHeight = 720;
+    } else if (docWidth < docHeight) {
+      // Portrait
+      targetWidth = 720;
+      const computedHeight = Math.round(720 * (docHeight / docWidth));
+      targetHeight = computedHeight % 2 === 0 ? computedHeight : computedHeight + 1;
+    } else {
+      // Landscape
+      targetHeight = 720;
+      const computedWidth = Math.round(720 * (docWidth / docHeight));
+      targetWidth = computedWidth % 2 === 0 ? computedWidth : computedWidth + 1;
+    }
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
 
     // Pause player playback during capture sweep
     const originalTime = timelineTime;
@@ -912,7 +941,7 @@ export default function EditorPage() {
                 <div className="h-11 border-b border-border/30 px-4 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                   Canvas Setup
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 text-xs font-semibold">
                   <div>
                     <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2">
                       Canvas Presets
@@ -937,6 +966,75 @@ export default function EditorPage() {
                             <span className="truncate text-[11px] font-bold text-foreground">
                               {preset.name}
                             </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border/20 pt-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2">
+                      Stage Layout (Aspect Ratio)
+                    </h4>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { id: "16:9" as const, name: "Landscape (16:9)", size: "640×360", shape: "w-5 h-3 border border-current rounded-sm" },
+                        { id: "9:16" as const, name: "Vertical (9:16)", size: "360×640", shape: "w-3 h-5 border border-current rounded-sm" },
+                        { id: "1:1" as const, name: "Square (1:1)", size: "500×500", shape: "w-4 h-4 border border-current rounded-sm" },
+                        { id: "4:3" as const, name: "Standard (4:3)", size: "480×360", shape: "w-4.5 h-3.5 border border-current rounded-sm" },
+                      ].map((preset) => {
+                        const currentWidth = document.stage.width || 640;
+                        const currentHeight = document.stage.height || 360;
+                        let isSelected = false;
+                        if (preset.id === "16:9" && currentWidth === 640 && currentHeight === 360) isSelected = true;
+                        else if (preset.id === "9:16" && currentWidth === 360 && currentHeight === 640) isSelected = true;
+                        else if (preset.id === "1:1" && currentWidth === 500 && currentHeight === 500) isSelected = true;
+                        else if (preset.id === "4:3" && currentWidth === 480 && currentHeight === 360) isSelected = true;
+
+                        return (
+                          <button
+                            key={preset.id}
+                            onClick={() => {
+                              let w = 640;
+                              let h = 360;
+                              if (preset.id === "9:16") {
+                                w = 360;
+                                h = 640;
+                              } else if (preset.id === "1:1") {
+                                w = 500;
+                                h = 500;
+                              } else if (preset.id === "4:3") {
+                                w = 480;
+                                h = 360;
+                              }
+                              setDocument({
+                                ...document,
+                                stage: {
+                                  ...document.stage,
+                                  width: w,
+                                  height: h,
+                                }
+                              });
+                              toast.success(`Switched stage layout to ${preset.name}`);
+                            }}
+                            className={`flex items-center justify-between p-2.5 border rounded-lg text-left transition-all duration-200 bg-card hover:bg-accent/40 ${
+                              isSelected 
+                                ? "border-primary ring-1 ring-primary text-primary" 
+                                : "border-border/60 text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="flex w-6 justify-center text-foreground shrink-0">
+                                <div className={preset.shape} />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-[11px] font-bold text-foreground leading-none">{preset.name}</span>
+                                <span className="text-[8px] font-semibold text-muted-foreground mt-0.5">{preset.size}</span>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <span className="text-[8px] font-black uppercase tracking-wider text-primary">Active</span>
+                            )}
                           </button>
                         );
                       })}

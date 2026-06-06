@@ -26,10 +26,10 @@ export const api = {
       projects: Array<{ id: string; name: string; createdAt: string; updatedAt: string }>;
     }>("/projects"),
 
-  createProject: (name: string) =>
+  createProject: (name: string, preset?: string) =>
     fetchApi<{ project: { id: string; name: string } }>("/projects", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, preset }),
     }),
 
   getDocument: (projectId: string) =>
@@ -52,20 +52,20 @@ export const api = {
       body: JSON.stringify({ prompt, entityId }),
     }),
 
-  enhanceScript: (prompt: string, availableSprites?: any, customUploads?: any) =>
+  enhanceScript: (prompt: string, availableSprites?: any, customUploads?: any, width?: number, height?: number) =>
     fetchApi<{ enhanced: string }>("/ai/enhance", {
       method: "POST",
-      body: JSON.stringify({ prompt, availableSprites, customUploads }),
+      body: JSON.stringify({ prompt, availableSprites, customUploads, width, height }),
     }),
 
-  generateAiLayers: (enhancedPrompt: string, availableSprites?: any, customUploads?: any) =>
+  generateAiLayers: (enhancedPrompt: string, availableSprites?: any, customUploads?: any, width?: number, height?: number) =>
     fetchApi<{
       layers: any[];
       entities: any[];
       timeline: any;
     }>("/ai/generate-layers", {
       method: "POST",
-      body: JSON.stringify({ enhancedPrompt, availableSprites, customUploads }),
+      body: JSON.stringify({ enhancedPrompt, availableSprites, customUploads, width, height }),
     }),
 
   createRenderJob: (projectId: string, format: "mp4" | "gif" | "webm") =>

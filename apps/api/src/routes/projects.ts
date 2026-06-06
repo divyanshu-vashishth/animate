@@ -33,7 +33,7 @@ projectRoutes.get("/", async (c) => {
 projectRoutes.post("/", async (c) => {
   const user = getAuthUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
-  const body = await c.req.json<{ name?: string }>();
+  const body = await c.req.json<{ name?: string; preset?: "16:9" | "9:16" | "1:1" | "4:3" }>();
   const db = getDb();
   const [project] = await db
     .insert(projects)
@@ -45,7 +45,7 @@ projectRoutes.post("/", async (c) => {
   if (!project) return c.json({ error: "Failed to create project" }, 500);
   await db.insert(projectDocuments).values({
     projectId: project.id,
-    data: createDefaultDocument(),
+    data: createDefaultDocument(body.preset),
   });
   return c.json({ project: { id: project.id, name: project.name } });
 });
