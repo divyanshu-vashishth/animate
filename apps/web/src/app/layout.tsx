@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Analytics } from   "@vercel/analytics/next";
+import {SpeedInsights} from "@vercel/speed-insights/next";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
@@ -24,6 +26,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           {children}
           <Toaster />
+          <Analytics/>
+          <SpeedInsights/>
         </ThemeProvider>
       </body>
     </html>
