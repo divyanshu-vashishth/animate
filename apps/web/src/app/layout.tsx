@@ -12,6 +12,14 @@ const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "Stickman Studio",
   description: "AI-powered stickman animation editor",
+  icons: {
+    icon: [
+      {
+        url: "/logo.svg",
+        type: "image/svg+xml",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
