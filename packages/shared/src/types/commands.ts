@@ -1,4 +1,5 @@
 import type { ProjectDocument, TransformData } from "./document.js";
+import type { FaceState, MouthShape } from "./rig.js";
 
 export type EditorCommand =
   | { type: "LoadDocument"; document: ProjectDocument }
@@ -23,6 +24,8 @@ export type EditorCommand =
   | { type: "CameraZoom"; scale: number; centerX?: number; centerY?: number }
   | { type: "ConvertToRig"; entityId: string }
   | { type: "SetEntityPose"; entityId: string; pose: string }
+  | { type: "SetRigFace"; entityId: string; face: FaceState }
+  | { type: "SetRigMouth"; entityId: string; mouth: MouthShape }
   | { type: "SetBoneRotation"; entityId: string; boneId: string; rotation: number };
 
 export type CommandHandler = (command: EditorCommand) => void;

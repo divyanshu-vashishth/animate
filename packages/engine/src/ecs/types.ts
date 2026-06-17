@@ -1,3 +1,5 @@
+import type { FaceState, MouthShape } from "@stickman/shared";
+
 export type EntityId = number;
 
 export interface TransformComponent {
@@ -35,6 +37,8 @@ export interface RigComponent {
   rigId: string;
   pose: string;
   boneRotations: Record<string, number>;
+  face?: FaceState;
+  mouth?: MouthShape;
 }
 
 export interface SelectableComponent {

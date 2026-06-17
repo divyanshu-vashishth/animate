@@ -1,5 +1,7 @@
 import type {
   EditorCommand,
+  FaceState,
+  MouthShape,
   ProjectDocument,
   SpriteManifest,
   TimelineData,
@@ -140,6 +142,12 @@ export class AnimationEngine {
       case "SetEntityPose":
         this.setEntityPose(command.entityId, command.pose);
         break;
+      case "SetRigFace":
+        this.setRigFace(command.entityId, command.face);
+        break;
+      case "SetRigMouth":
+        this.setRigMouth(command.entityId, command.mouth);
+        break;
       case "SetBoneRotation":
         this.setBoneRotation(command.entityId, command.boneId, command.rotation);
         break;
@@ -230,6 +238,19 @@ export class AnimationEngine {
           if (rig) {
             rig.pose = entity.pose;
             rig.boneRotations = entity.boneRotations ?? {};
+            rig.face = entity.face;
+            rig.mouth = entity.mouth;
+          }
+          const render = this.world.getComponent(eid, "render");
+          const display = render ? this.renderer.getDisplay(render.displayObjectId) : undefined;
+          if (display) {
+            this.rigRenderer.applyPose(
+              display.container,
+              rig?.pose ?? entity.pose,
+              rig?.boneRotations ?? entity.boneRotations ?? {},
+              rig?.face ?? entity.face,
+              rig?.mouth ?? entity.mouth
+            );
           }
         }
       }
@@ -252,6 +273,7 @@ export class AnimationEngine {
       timeline,
       (props) => {
         this.gsapBridge.applyEvaluated(props);
+        this.syncRigDisplays();
         this.renderSystem.sync();
       },
       (time) => this.emit("timelineTime", time)
@@ -333,7 +355,7 @@ export class AnimationEngine {
     const entityUuid = uuid ?? crypto.randomUUID();
     const displayId = entityUuid;
     const entry = this.renderer.createRigDisplay(displayId, layerId);
-    this.rigRenderer.applyPose(entry.container, "idle");
+    this.rigRenderer.applyPose(entry.container, "idle_presenter", {}, "smile", "closed");
 
     const entityId = this.world.createEntity(entityUuid);
     this.world.setUuid(entityId, entityUuid);
@@ -347,8 +369,10 @@ export class AnimationEngine {
     this.world.addComponent(entityId, "render", { displayObjectId: displayId, zIndex: 0 });
     this.world.addComponent(entityId, "rig", {
       rigId,
-      pose: "idle",
+      pose: "idle_presenter",
       boneRotations: {},
+      face: "smile",
+      mouth: "closed",
     });
     this.world.addComponent(entityId, "layerMeta", { layerId, locked: false, visible: true });
     this.world.addComponent(entityId, "name", { name: name ?? rigId });
@@ -367,8 +391,12 @@ export class AnimationEngine {
         name: name ?? rigId,
         layerId,
         rigId,
-        pose: "idle",
+        pose: "idle_presenter",
+        face: "smile",
+        mouth: "closed",
         transform: { x, y, rotation: 0, scaleX: 1, scaleY: 1 },
+        width: 150,
+        height: 190,
       });
     }
     this.renderSystem.sync();
@@ -382,7 +410,7 @@ export class AnimationEngine {
     if (!rig || !render) return;
     rig.pose = pose;
     const display = this.renderer.getDisplay(render.displayObjectId);
-    if (display) this.rigRenderer.applyPose(display.container, pose, rig.boneRotations);
+    if (display) this.rigRenderer.applyPose(display.container, pose, rig.boneRotations, rig.face, rig.mouth);
     const docEntity = this.document.entities.find((e) => e.id === entityUuid);
     if (docEntity && docEntity.type === "rig") docEntity.pose = pose;
   }
@@ -395,11 +423,37 @@ export class AnimationEngine {
     if (!rig || !render) return;
     rig.boneRotations[boneId] = rotation;
     const display = this.renderer.getDisplay(render.displayObjectId);
-    if (display) this.rigRenderer.applyPose(display.container, rig.pose, rig.boneRotations);
+    if (display) this.rigRenderer.applyPose(display.container, rig.pose, rig.boneRotations, rig.face, rig.mouth);
     const docEntity = this.document.entities.find((e) => e.id === entityUuid);
     if (docEntity && docEntity.type === "rig") {
       docEntity.boneRotations = { ...rig.boneRotations };
     }
+  }
+
+  private setRigFace(entityUuid: string, face: FaceState): void {
+    const entityId = this.world.getEntityByUuid(entityUuid);
+    if (entityId === undefined) return;
+    const rig = this.world.getComponent(entityId, "rig");
+    const render = this.world.getComponent(entityId, "render");
+    if (!rig || !render) return;
+    rig.face = face;
+    const display = this.renderer.getDisplay(render.displayObjectId);
+    if (display) this.rigRenderer.applyPose(display.container, rig.pose, rig.boneRotations, rig.face, rig.mouth);
+    const docEntity = this.document.entities.find((e) => e.id === entityUuid);
+    if (docEntity && docEntity.type === "rig") docEntity.face = rig.face;
+  }
+
+  private setRigMouth(entityUuid: string, mouth: MouthShape): void {
+    const entityId = this.world.getEntityByUuid(entityUuid);
+    if (entityId === undefined) return;
+    const rig = this.world.getComponent(entityId, "rig");
+    const render = this.world.getComponent(entityId, "render");
+    if (!rig || !render) return;
+    rig.mouth = mouth;
+    const display = this.renderer.getDisplay(render.displayObjectId);
+    if (display) this.rigRenderer.applyPose(display.container, rig.pose, rig.boneRotations, rig.face, rig.mouth);
+    const docEntity = this.document.entities.find((e) => e.id === entityUuid);
+    if (docEntity && docEntity.type === "rig") docEntity.mouth = rig.mouth;
   }
 
   private async convertToRig(entityUuid: string): Promise<void> {
@@ -593,6 +647,25 @@ export class AnimationEngine {
           entity.clip = anim.clip;
           entity.playing = anim.playing;
         }
+      } else if (entity.type === "rig") {
+        const rig = this.world.getComponent(eid, "rig");
+        if (rig) {
+          entity.pose = rig.pose;
+          entity.boneRotations = { ...rig.boneRotations };
+          entity.face = rig.face;
+          entity.mouth = rig.mouth;
+        }
+      }
+    }
+  }
+
+  private syncRigDisplays(): void {
+    for (const id of this.world.query("rig", "render")) {
+      const rig = this.world.getComponent(id, "rig")!;
+      const render = this.world.getComponent(id, "render")!;
+      const display = this.renderer.getDisplay(render.displayObjectId);
+      if (display) {
+        this.rigRenderer.applyPose(display.container, rig.pose, rig.boneRotations, rig.face, rig.mouth);
       }
     }
   }

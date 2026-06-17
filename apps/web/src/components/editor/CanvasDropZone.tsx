@@ -3,7 +3,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "@/stores/editor-store";
 import { spriteManifest, spriteUrl } from "@stickman/shared";
+import type { RigBoneId, ShapeKind } from "@stickman/shared";
 import { toast } from "sonner";
+import { createPresenterRigEntity, createShapeEntity } from "@/lib/teaching-entities";
+import { RigEntityView } from "./RigEntityView";
+import { ShapeEntityView } from "./ShapeEntityView";
 
 // Keyframe property evaluator to support smooth animations on canvas
 const evaluateProperty = (document: any, entityId: string, property: string, time: number, defaultValue: any) => {
@@ -189,7 +193,23 @@ export function CanvasDropZone() {
 
     let newEntity: any = null;
 
-    if (clip.startsWith("http") || clip.startsWith("data:")) {
+    if (clip === "teaching/rig/presenter") {
+      newEntity = createPresenterRigEntity(
+        document.layers[0]?.id || "default-layer",
+        x,
+        y,
+        document.timeline?.duration ?? 5
+      );
+    } else if (clip.startsWith("teaching/shape/")) {
+      const kind = clip.replace("teaching/shape/", "") as ShapeKind;
+      newEntity = createShapeEntity(
+        kind,
+        document.layers[0]?.id || "default-layer",
+        x,
+        y,
+        document.timeline?.duration ?? 5
+      );
+    } else if (clip.startsWith("http") || clip.startsWith("data:")) {
       newEntity = {
         id: crypto.randomUUID(),
         type: "image" as const,
@@ -360,6 +380,23 @@ export function CanvasDropZone() {
     setDragState(null);
   };
 
+  const handleRigBoneRotationChange = (entityId: string, boneId: RigBoneId, rotation: number) => {
+    if (!document) return;
+    setDocument({
+      ...document,
+      entities: document.entities.map((item: any) => {
+        if (item.id !== entityId || item.type !== "rig") return item;
+        return {
+          ...item,
+          boneRotations: {
+            ...(item.boneRotations ?? {}),
+            [boneId]: rotation,
+          },
+        };
+      }),
+    });
+  };
+
   const handleViewportClick = (e: React.MouseEvent) => {
     if (draggedRef.current) {
       // Just finished dragging, consume the click event without deselecting
@@ -434,6 +471,48 @@ export function CanvasDropZone() {
                 timelineTime={timelineTime}
                 isSelected={isSelected}
                 isDraggingThis={isDraggingThis}
+                handleMouseDown={handleMouseDown}
+              />
+            );
+          }
+
+          if (entity.type === "rig") {
+            return (
+              <RigEntityView
+                key={entity.id}
+                entity={entity}
+                document={document}
+                timelineTime={timelineTime}
+                isSelected={isSelected}
+                isDraggingThis={isDraggingThis}
+                evaluateProperty={evaluateProperty}
+                handleMouseDown={handleMouseDown}
+                onBoneRotationChange={(boneId, value) => handleRigBoneRotationChange(entity.id, boneId, value)}
+              />
+            );
+          }
+
+          if (entity.type === "shape") {
+            const fillColor = evaluateProperty(document, entity.id, "shape.fillColor", timelineTime, entity.fillColor ?? "transparent");
+            const strokeColor = evaluateProperty(document, entity.id, "shape.strokeColor", timelineTime, entity.strokeColor ?? "#111827");
+            const opacity = evaluateProperty(document, entity.id, "opacity", timelineTime, entity.opacity ?? 1);
+            return (
+              <ShapeEntityView
+                key={entity.id}
+                entity={{
+                  ...entity,
+                  fillColor: typeof fillColor === "string" ? fillColor : entity.fillColor,
+                  strokeColor: typeof strokeColor === "string" ? strokeColor : entity.strokeColor,
+                  opacity: typeof opacity === "number" ? opacity : entity.opacity,
+                }}
+                x={x}
+                y={y}
+                rotation={rotation}
+                scaleX={scaleX}
+                scaleY={scaleY}
+                width={width}
+                height={height}
+                isSelected={isSelected}
                 handleMouseDown={handleMouseDown}
               />
             );

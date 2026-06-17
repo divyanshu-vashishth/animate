@@ -1,5 +1,6 @@
 import gsap from "gsap";
 import type { EvaluatedProperty } from "@stickman/timeline";
+import type { FaceState, MouthShape } from "@stickman/shared";
 import type { PixiRenderer } from "../renderer/pixi-renderer.js";
 import type { World } from "../ecs/world.js";
 
@@ -40,6 +41,19 @@ export class GsapBridge {
           anim.elapsed = 0;
           anim.playing = true;
         }
+      } else if (prop.property === "rig.pose" && typeof prop.value === "string") {
+        const rig = this.world.getComponent(entityId, "rig");
+        if (rig) rig.pose = prop.value;
+      } else if (prop.property === "rig.face" && typeof prop.value === "string") {
+        const rig = this.world.getComponent(entityId, "rig");
+        if (rig) rig.face = prop.value as FaceState;
+      } else if (prop.property === "rig.mouth" && typeof prop.value === "string") {
+        const rig = this.world.getComponent(entityId, "rig");
+        if (rig) rig.mouth = prop.value as MouthShape;
+      } else if (prop.property.startsWith("rig.bones.") && typeof prop.value === "number") {
+        const rig = this.world.getComponent(entityId, "rig");
+        const boneId = prop.property.replace("rig.bones.", "");
+        if (rig) rig.boneRotations[boneId] = prop.value;
       }
     }
   }

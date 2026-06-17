@@ -63,6 +63,7 @@ export const api = {
       layers: any[];
       entities: any[];
       timeline: any;
+      voiceTracks?: ProjectDocument["voiceTracks"];
     }>("/ai/generate-layers", {
       method: "POST",
       body: JSON.stringify({ enhancedPrompt, availableSprites, customUploads, width, height }),

@@ -15,6 +15,7 @@ interface EditorState {
   isDirty: boolean;
   isSaving: boolean;
   selectedAudioTrackId: string | null;
+  selectedVoiceTrackId: string | null;
   leftPanelTab: string | null;
   inspectorCollapsed: boolean;
 
@@ -22,6 +23,7 @@ interface EditorState {
   setDocument: (doc: ProjectDocument) => void;
   setSelectedEntity: (id: string | null) => void;
   setSelectedAudioTrack: (id: string | null) => void;
+  setSelectedVoiceTrack: (id: string | null) => void;
   setActiveTool: (tool: ActiveTool) => void;
   setActiveLayerId: (id: string | null) => void;
   setPlaybackState: (state: "stopped" | "playing" | "paused") => void;
@@ -47,6 +49,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isSaving: false,
   leftPanelTab: "video", // Default tab on editor open
   inspectorCollapsed: false,
+  selectedVoiceTrackId: null,
 
   setProject: (id, name, doc) =>
     set({
@@ -56,15 +59,19 @@ export const useEditorStore = create<EditorState>((set) => ({
       activeLayerId: doc.layers[0]?.id ?? null,
       isDirty: false,
       selectedAudioTrackId: null,
+      selectedVoiceTrackId: null,
     }),
 
   setDocument: (doc) => set({ document: doc, isDirty: true }),
 
   setSelectedEntity: (id) =>
-    set({ selectedEntityIds: id ? [id] : [], selectedAudioTrackId: null }),
+    set({ selectedEntityIds: id ? [id] : [], selectedAudioTrackId: null, selectedVoiceTrackId: null }),
 
   setSelectedAudioTrack: (id) =>
-    set({ selectedAudioTrackId: id, selectedEntityIds: [] }),
+    set({ selectedAudioTrackId: id, selectedVoiceTrackId: null, selectedEntityIds: [] }),
+
+  setSelectedVoiceTrack: (id) =>
+    set({ selectedVoiceTrackId: id, selectedAudioTrackId: null, selectedEntityIds: [] }),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 

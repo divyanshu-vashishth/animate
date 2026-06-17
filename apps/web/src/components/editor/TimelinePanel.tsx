@@ -9,8 +9,11 @@ import {
   IconMovie,
   IconTypography,
   IconPhoto,
+  IconUser,
+  IconBox,
   IconVideo,
   IconMusic,
+  IconMicrophone,
   IconTrash,
   IconChevronUp,
   IconChevronDown
@@ -29,6 +32,8 @@ export function TimelinePanel() {
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
   const selectedAudioTrackId = useEditorStore((s) => s.selectedAudioTrackId);
   const setSelectedAudioTrack = useEditorStore((s) => s.setSelectedAudioTrack);
+  const selectedVoiceTrackId = useEditorStore((s) => s.selectedVoiceTrackId);
+  const setSelectedVoiceTrack = useEditorStore((s) => s.setSelectedVoiceTrack);
   const reorderEntity = useEditorStore((s) => s.reorderEntity);
 
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -87,12 +92,18 @@ export function TimelinePanel() {
         return <IconTypography className="h-3.5 w-3.5 text-sky-400 shrink-0" />;
       case "image":
         return <IconPhoto className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
+      case "rig":
+        return <IconUser className="h-3.5 w-3.5 text-primary shrink-0" />;
+      case "shape":
+        return <IconBox className="h-3.5 w-3.5 text-amber-400 shrink-0" />;
       default:
         return <IconMovie className="h-3.5 w-3.5 text-indigo-400 shrink-0" />;
     }
   };
 
   const entities = document?.entities || [];
+  const audioTracks = document?.audioTracks || [];
+  const voiceTracks = document?.voiceTracks || [];
 
   return (
     <div className="flex h-56 flex-col bg-card/60 backdrop-blur-md select-none border-t border-border/50">
@@ -245,14 +256,14 @@ export function TimelinePanel() {
               );
             })}
 
-            {entities.length === 0 && (!document?.audioTracks || document.audioTracks.length === 0) && (
+            {entities.length === 0 && audioTracks.length === 0 && voiceTracks.length === 0 && (
               <div className="flex-1 flex items-center justify-center p-4 text-[10px] text-muted-foreground/60 italic text-center select-none">
-                No active tracks. Drag sprites or add text/audio!
+                No active tracks. Add a presenter, text, audio, or voiceover.
               </div>
             )}
 
             {/* Audio Track Headers */}
-            {document?.audioTracks?.map((track) => {
+            {audioTracks.map((track) => {
               const isSelected = selectedAudioTrackId === track.id;
               return (
                 <div
@@ -275,6 +286,7 @@ export function TimelinePanel() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!document) return;
                       const updated = document.audioTracks?.filter((t) => t.id !== track.id) || [];
                       setDocument({ ...document, audioTracks: updated });
                       if (selectedAudioTrackId === track.id) {
@@ -284,6 +296,46 @@ export function TimelinePanel() {
                     }}
                     className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
                     title="Remove soundtrack"
+                  >
+                    <IconTrash className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* Voice Track Headers */}
+            {voiceTracks.map((track) => {
+              const isSelected = selectedVoiceTrackId === track.id;
+              return (
+                <div
+                  key={track.id}
+                  onClick={() => setSelectedVoiceTrack(track.id)}
+                  className={`h-9 shrink-0 flex items-center justify-between px-3 text-xs font-semibold cursor-pointer border-t border-border/10 ${
+                    isSelected
+                      ? "bg-primary/10 border-l-2 border-primary text-primary"
+                      : "hover:bg-accent/30 text-foreground/80"
+                  } group`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <IconMicrophone className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                    <span className="truncate flex-1 select-none leading-none capitalize text-[11px] font-bold">
+                      {track.name}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!document) return;
+                      const updated = voiceTracks.filter((t) => t.id !== track.id);
+                      setDocument({ ...document, voiceTracks: updated });
+                      if (selectedVoiceTrackId === track.id) {
+                        setSelectedVoiceTrack(null);
+                      }
+                      toast.success("Removed voiceover");
+                    }}
+                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                    title="Remove voiceover"
                   >
                     <IconTrash className="h-3.5 w-3.5" />
                   </button>
@@ -347,12 +399,11 @@ export function TimelinePanel() {
                 })}
 
                 {/* Audio Track Bars */}
-                {document?.audioTracks?.map((track) => {
+                {audioTracks.map((track) => {
                   const isSelected = selectedAudioTrackId === track.id;
                   const start = track.startTime ?? 0;
-                  const end = start + (track.duration ?? duration);
                   const leftPercent = (start / duration) * 100;
-                  const widthPercent = (Math.min(track.duration ?? duration, duration - start) / duration) * 100;
+                  const widthPercent = (Math.max(0, Math.min(track.duration ?? duration, duration - start)) / duration) * 100;
 
                   return (
                     <div
@@ -393,6 +444,46 @@ export function TimelinePanel() {
                               );
                             })}
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Voice Track Bars */}
+                {voiceTracks.map((track) => {
+                  const isSelected = selectedVoiceTrackId === track.id;
+                  const start = track.startTime ?? 0;
+                  const leftPercent = (start / duration) * 100;
+                  const widthPercent = (Math.max(0, Math.min(track.duration ?? duration, duration - start)) / duration) * 100;
+
+                  return (
+                    <div
+                      key={track.id}
+                      onClick={() => setSelectedVoiceTrack(track.id)}
+                      className={`h-9 shrink-0 relative flex items-center px-4 cursor-pointer border-t border-border/10 ${
+                        isSelected ? "bg-cyan-500/5" : "hover:bg-accent/10"
+                      }`}
+                    >
+                      <div
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                        }}
+                        className={`absolute h-6 rounded-full border shadow-sm transition-all flex items-center px-3 select-none z-10 ${
+                          isSelected
+                            ? "bg-cyan-500 text-neutral-950 border-cyan-200 shadow-cyan-500/25"
+                            : "bg-cyan-500/25 text-cyan-100 border-cyan-300/20 hover:bg-cyan-500/35"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 w-full min-w-0">
+                          <IconMicrophone className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-[9px] font-black truncate shrink-0 capitalize">
+                            {track.name}
+                          </span>
+                          <span className="min-w-0 truncate text-[8px] font-semibold opacity-75">
+                            {track.text}
+                          </span>
                         </div>
                       </div>
                     </div>

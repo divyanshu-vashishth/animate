@@ -1,3 +1,6 @@
+import type { FaceState, MouthShape } from "./rig.js";
+import type { ShapeKind } from "./shapes.js";
+
 export type EntityId = string;
 export type LayerId = string;
 
@@ -38,8 +41,14 @@ export interface RigEntityData {
   layerId: LayerId;
   rigId: string;
   pose: string;
+  face?: FaceState;
+  mouth?: MouthShape;
   transform: TransformData;
   boneRotations?: Record<string, number>;
+  width?: number;
+  height?: number;
+  startTime?: number;
+  endTime?: number;
 }
 
 export interface TextEntityData {
@@ -68,7 +77,30 @@ export interface ImageEntityData {
   endTime?: number;
 }
 
-export type EntityData = SpriteEntityData | RigEntityData | TextEntityData | ImageEntityData;
+export interface ShapeEntityData {
+  id: EntityId;
+  type: "shape";
+  name: string;
+  layerId: LayerId;
+  shape: ShapeKind;
+  transform: TransformData;
+  width: number;
+  height: number;
+  fillColor?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  text?: string;
+  opacity?: number;
+  startTime?: number;
+  endTime?: number;
+}
+
+export type EntityData =
+  | SpriteEntityData
+  | RigEntityData
+  | TextEntityData
+  | ImageEntityData
+  | ShapeEntityData;
 
 export interface StageData {
   width: number;
@@ -86,6 +118,19 @@ export interface AudioTrackData {
   audioStartOffset?: number; // offset within the original audio file in seconds
 }
 
+export interface VoiceTrackData {
+  id: string;
+  name: string;
+  text: string;
+  voiceName?: string;
+  lang?: string;
+  rate: number; // 0.5 to 2
+  pitch: number; // 0 to 2
+  volume: number; // 0 to 1
+  startTime: number; // playhead offset in seconds
+  duration: number; // in seconds
+}
+
 export interface ProjectDocument {
   version: number;
   stage: StageData;
@@ -93,6 +138,7 @@ export interface ProjectDocument {
   entities: EntityData[];
   timeline?: import("./timeline.js").TimelineData;
   audioTracks?: AudioTrackData[];
+  voiceTracks?: VoiceTrackData[];
 }
 
 export function createDefaultDocument(preset: "16:9" | "9:16" | "1:1" | "4:3" = "16:9"): ProjectDocument {

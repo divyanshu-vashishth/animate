@@ -4,6 +4,7 @@ import {
   animationScriptSchema,
   compileAnimationScript,
 } from "@stickman/ai";
+import { TEACHING_RIG_ACTIONS, TEACHING_SHAPE_PRESETS } from "@stickman/shared";
 import { getAuthUser } from "../middleware/session.js";
 
 export const aiRoutes = new Hono();
@@ -112,6 +113,8 @@ aiRoutes.post("/enhance", async (c) => {
 - Available Character Sprites: ${JSON.stringify(body.availableSprites?.characters || [])}
 - Available Props: ${JSON.stringify(body.availableSprites?.props || [])}
 - Available Backgrounds: ${JSON.stringify(body.availableSprites?.backgrounds || [])}
+- Available Teaching Rig Actions: ${JSON.stringify(body.availableSprites?.rigActions || Object.keys(TEACHING_RIG_ACTIONS))}
+- Available Teaching Shapes: ${JSON.stringify(TEACHING_SHAPE_PRESETS.map((preset) => preset.kind))}
 - Custom Uploaded Media (Images): ${JSON.stringify(body.customUploads || [])}
 If custom uploaded media assets are listed, incorporate them into the actions/storyboard using their exact names!
 `;
@@ -120,19 +123,14 @@ If custom uploaded media assets are listed, incorporate them into the actions/st
     const promptMessage = `You are a master storyboarder and animator assistant. The user wants to animate a scene described as: "${body.prompt}". Enhance this simple script into a detailed, time-coded animation plan (storyboard) for a 10-second 2D stickman animation. The screen width is ${width}px, height is ${height}px, ground baseline is at Y = ${baseline}px.${assetsContext}
 
 STYLE & MOVEMENT INSTRUCTIONS:
-- The animation must look like high-quality, high-impact stickman combat sequences (like fluid ninja/fighter stickman videos).
-- Leverage these specific character actions for combat:
-  * "fighter" character actions: 'idle', 'walk', 'run', 'dash', 'slide', 'jump', 'hit', 'air_attack', 'combo' (delivers a multi-hit combat strike combo), 'death'.
-  * "sword" character actions: 'idle', 'walk', 'run', 'dash', 'jump', 'hit', 'combo' (delivers a cool sword slash combo), 'air_attack', 'death'.
-  * "pistol" character actions: 'idle', 'walk', 'run', 'dash', 'jump', 'slide', 'shot' (shoots pistol bullets), 'wallslide'.
-- For a premium fight choreography, include:
-  1. Quick closing/opening of distance using 'dash' or 'slide'.
-  2. Jumping dodge maneuvers (Y moving up to ${baseline - 100} or ${baseline - 150} during a jump and back down).
-  3. Unleashing intense attacks using the 'combo' clip (e.g. 'fighter/combo' or 'sword/combo') or 'pistol/shot' clip.
-  4. The opponent reacting to the attack immediately at the contact frame using 'hit', sliding backwards, or falling to the ground in 'death'.
-  5. Direction flips ('scaleX') so they face each other (e.g., scaleX is 1 when looking right, -1 when looking left).
-  6. Props (like buildings, grass, etc.) or backgrounds if available in the workspace.
-- Format the output as a clear bullet-pointed outline with exact time frames (e.g. 0.0s - 10.0s) for each character. Keep it compact and professional.`;
+- The animation must look like a clean teaching explainer, not combat choreography.
+- Use one main editable presenter rig with teaching actions such as: ${Object.keys(TEACHING_RIG_ACTIONS).join(", ")}.
+- Use diagram shapes for teaching visuals: ${TEACHING_SHAPE_PRESETS.map((preset) => preset.kind).join(", ")}.
+- Prefer board-style layouts: title text, definition box, module boxes, arrows, highlights, examples, and final summary.
+- For talking moments, alternate rig mouth states (closed, smallOpen, wideOpen, oShape, smile, flat), small nods, and subtle hand gestures.
+- Include concise narration text for the presenter that matches the on-screen teaching flow.
+- Use existing fighter/sword/pistol combat sprites only if the user explicitly asks for fighting or action scenes. Otherwise do not mention combo, hit, death, pistol/shot, weapons, attacks, dodges, or opponents.
+- Format the output as a clear bullet-pointed outline with exact time ranges (e.g. 0.0s - 10.0s), presenter pose/action, narration, on-screen text, diagram shapes, and arrows. Keep it compact and professional.`;
 
     const enhanced = await callGemini(promptMessage);
     return c.json({ enhanced });
@@ -174,6 +172,8 @@ aiRoutes.post("/generate-layers", async (c) => {
 - Characters: ${JSON.stringify(body.availableSprites?.characters || [])}
 - Props: ${JSON.stringify(body.availableSprites?.props || [])} (format: "extras/prop/<filename>")
 - Backgrounds: ${JSON.stringify(body.availableSprites?.backgrounds || [])} (format: "extras/background/<filename>")
+- Teaching Rig Actions: ${JSON.stringify(body.availableSprites?.rigActions || Object.keys(TEACHING_RIG_ACTIONS))}
+- Teaching Shapes: ${JSON.stringify(TEACHING_SHAPE_PRESETS.map((preset) => preset.kind))}
 - Custom Uploaded Media: ${JSON.stringify(body.customUploads || [])}
 Important for Custom Uploads: If the storyboard mentions a custom uploaded media asset, output its entity with:
 1. "type": "image"
@@ -210,10 +210,15 @@ JSON Structure:
   "entities": [
     {
       "id": "string (unique)",
-      "type": "sprite" or "text" or "image",
+      "type": "rig" or "shape" or "text" or "image" or "sprite",
       "name": "string",
       "layerId": "string (from layers)",
-      "clip": "string (format: '<character_name>/<action>' e.g. 'fighter/run', 'sword/combo', 'pistol/shot', or prop 'extras/prop/building1.png', or background 'extras/background/background1.png')",
+      "clip": "string only for sprite entities (format: '<character_name>/<action>' or prop 'extras/prop/<filename>' or background 'extras/background/<filename>')",
+      "rigId": "teaching-stickman (only for rig entities)",
+      "pose": "string teaching pose/action id only for rig entities, e.g. 'idle_presenter', 'talk_neutral', 'point_right', 'present_board', 'conclusion'",
+      "face": "neutral" or "smile" or "thinking" or "confused" or "warning" or "happy",
+      "mouth": "closed" or "smallOpen" or "wideOpen" or "oShape" or "smile" or "flat",
+      "shape": "box" or "rounded_box" or "circle" or "arrow" or "line" or "database" or "cloud" or "highlight" or "underline" or "check" or "cross",
       "src": "omit for image entities (client restores by name)",
       "text": "string (only if type is text)",
       "transform": { "x": number (default X position), "y": number (default Y position, e.g. ${baseline}), "rotation": number (default 0), "scaleX": number (1 or -1 for horizontal flip), "scaleY": number (1 or -1) },
@@ -223,6 +228,19 @@ JSON Structure:
       "height": number (default height, e.g. 120 for characters)
     }
   ],
+  "voiceTracks": [
+    {
+      "id": "string (unique UUID)",
+      "name": "Narration",
+      "text": "concise presenter narration matching the storyboard",
+      "startTime": number,
+      "duration": number,
+      "rate": number (0.5 to 2.0, default 1),
+      "pitch": number (0 to 2, default 1),
+      "volume": number (0 to 1, default 1),
+      "lang": "optional BCP-47 language code such as en-US"
+    }
+  ],
   "timeline": {
     "duration": 10.0,
     "fps": 60,
@@ -230,7 +248,7 @@ JSON Structure:
       {
         "id": "string (unique)",
         "entityId": "string (matching entities.id)",
-        "property": "transform.x" or "transform.y" or "transform.rotation" or "transform.scaleX" or "spriteAnimation.clip" or "text",
+        "property": "transform.x" or "transform.y" or "transform.rotation" or "transform.scaleX" or "rig.pose" or "rig.face" or "rig.mouth" or "text" or "width" or "height" or "shape.fillColor" or "shape.strokeColor" or "opacity" or "spriteAnimation.clip",
         "keyframes": [
           { "id": "string (unique)", "time": number (between 0.0 and 10.0), "value": number or string, "easing": "easeInOut" or "linear" or "none" }
         ]
@@ -240,12 +258,14 @@ JSON Structure:
 }
 
 CHOREOGRAPHY & MOTION RULES:
-1. Every character entity MUST stand on the baseline Y = ${baseline} when grounded.
-2. For jump moves or air strikes (e.g. air_attack), animate "transform.y" to rise (e.g., Y decreases to ${baseline - 120} or ${baseline - 150}) and then descend back to Y = ${baseline}.
-3. Clip transitions must be keyframed under property "spriteAnimation.clip" at precise timestamps (e.g., time 0.0 value is "fighter/idle", time 1.0 value is "fighter/run", time 2.0 value is "fighter/combo", time 3.5 value is "fighter/hit", time 4.5 value is "fighter/death").
-4. Always face characters towards each other using keyframes on "transform.scaleX" (e.g., set scaleX = 1 for character facing right, set scaleX = -1 for character facing left).
-5. Ensure actions are synced! If Fighter attacks with a combo at t=2.0s, the opponent's position "transform.x" or clip "spriteAnimation.clip" must react at t=2.0s (e.g. transitioning to "hit" or "death", or sliding back by changing transform.x).
-6. Every entity must have a unique ID, and its tracks must reference that same ID. All IDs must be valid random UUIDs.`;
+1. Create at least one "rig" presenter entity standing on baseline Y = ${baseline}. Use width around 150 and height around 190.
+2. Use "rig.pose" keyframes for presenter actions such as talk_neutral, point_right, present_board, write_board, highlight_key_point, and conclusion.
+3. Use "rig.mouth" keyframes during speech. Alternate closed/smallOpen/wideOpen/oShape every 0.2-0.5 seconds for simple talking animation.
+4. Use "shape" entities for teaching diagrams. Use rounded_box for modules, box for definitions, arrow/line for flows, highlight/underline for emphasis, database/cloud when useful.
+5. Use text entities for title, definition, labels, bullet summaries, and callouts.
+6. Add one voiceTracks entry for the presenter narration unless the storyboard explicitly says silent/no voice. Keep narration natural and short enough to fit the 10-second scene.
+7. Do not use combo, hit, death, pistol/shot, weapons, attacks, opponents, or fight choreography unless the source storyboard explicitly asks for combat.
+8. Every entity must have a unique ID, and its tracks must reference that same ID. All IDs must be valid random UUIDs.`;
 
     const rawJson = await callGemini(promptMessage, true);
     const cleanedJson = cleanGeminiJsonResponse(rawJson);
@@ -259,6 +279,15 @@ CHOREOGRAPHY & MOTION RULES:
 
 function promptToScript(prompt: string): unknown | null {
   const lower = prompt.toLowerCase();
+  if (lower.includes("teach") || lower.includes("explain") || lower.includes("what is") || lower.includes("sap")) {
+    return {
+      character: "fighter",
+      actions: [
+        { type: "playClip", clip: "idle", duration: 0.5 },
+        { type: "wait", duration: 2 },
+      ],
+    };
+  }
   if (lower.includes("combo") || lower.includes("fight") || lower.includes("kick")) {
     return {
       character: "fighter",

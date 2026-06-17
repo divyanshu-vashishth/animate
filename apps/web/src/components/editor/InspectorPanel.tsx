@@ -2,11 +2,19 @@
 
 import React from "react";
 import { useEditorStore } from "@/stores/editor-store";
+import {
+  FACE_STATES,
+  MOUTH_SHAPES,
+  RIG_BONE_IDS,
+  TEACHING_RIG_POSES,
+  mirrorRigBoneRotations,
+  type RigBoneId,
+} from "@stickman/shared";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EditorPanel } from "./editor-panel";
-import { IconTrash, IconMusic, IconArrowUp, IconArrowDown, IconArrowBarUp, IconArrowBarDown } from "@tabler/icons-react";
+import { IconTrash, IconPlayerPlay, IconArrowUp, IconArrowDown, IconArrowBarUp, IconArrowBarDown } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 export function InspectorPanel({ className }: { className?: string }) {
@@ -16,21 +24,24 @@ export function InspectorPanel({ className }: { className?: string }) {
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
   const selectedAudioTrackId = useEditorStore((s) => s.selectedAudioTrackId);
   const setSelectedAudioTrack = useEditorStore((s) => s.setSelectedAudioTrack);
+  const selectedVoiceTrackId = useEditorStore((s) => s.selectedVoiceTrackId);
+  const setSelectedVoiceTrack = useEditorStore((s) => s.setSelectedVoiceTrack);
   const reorderEntity = useEditorStore((s) => s.reorderEntity);
 
   const duration = document?.timeline?.duration ?? 10;
   const entityId = selectedEntityIds[0];
   const entity = document?.entities.find((item) => item.id === entityId);
   const track = document?.audioTracks?.find((item) => item.id === selectedAudioTrackId);
+  const voiceTrack = document?.voiceTracks?.find((item) => item.id === selectedVoiceTrackId);
 
   if (!document) return null;
 
-  if (!entity && !track) {
+  if (!entity && !track && !voiceTrack) {
     return (
       <EditorPanel title="Inspector" className={className ?? "max-h-48 shrink-0"}>
         <div className="flex h-full items-center justify-center p-4 text-center select-none">
           <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
-            Select any canvas element or timeline layer/music track to inspect properties
+            Select any canvas element, music track, or voiceover to inspect properties
           </p>
         </div>
       </EditorPanel>
@@ -66,6 +77,200 @@ export function InspectorPanel({ className }: { className?: string }) {
     setSelectedAudioTrack(null);
     toast.success(`Removed soundtrack "${track.name}"`);
   };
+
+  const clampTrackValue = (value: number, min: number, max: number) => {
+    if (!Number.isFinite(value)) return min;
+    return Math.min(max, Math.max(min, value));
+  };
+
+  const updateVoiceTrackProperty = (key: string, val: any) => {
+    if (!voiceTrack) return;
+    const updated = document.voiceTracks?.map((item) => {
+      if (item.id === voiceTrack.id) {
+        return {
+          ...item,
+          [key]: val,
+        };
+      }
+      return item;
+    }) || [];
+
+    setDocument({
+      ...document,
+      voiceTracks: updated,
+    });
+  };
+
+  const handlePreviewVoiceTrack = () => {
+    if (!voiceTrack?.text.trim()) {
+      toast.error("Voiceover text is empty");
+      return;
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      toast.error("This browser does not support voice preview");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(voiceTrack.text);
+    utterance.rate = clampTrackValue(voiceTrack.rate ?? 1, 0.5, 2);
+    utterance.pitch = clampTrackValue(voiceTrack.pitch ?? 1, 0, 2);
+    utterance.volume = clampTrackValue(voiceTrack.volume ?? 1, 0, 1);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleDeleteVoiceTrack = () => {
+    if (!voiceTrack) return;
+    const updated = document.voiceTracks?.filter((item) => item.id !== voiceTrack.id) || [];
+    setDocument({
+      ...document,
+      voiceTracks: updated,
+    });
+    setSelectedVoiceTrack(null);
+    toast.success(`Removed voiceover "${voiceTrack.name}"`);
+  };
+
+  if (voiceTrack) {
+    return (
+      <EditorPanel title="Voice Inspector" className={className ?? "max-h-none overflow-y-auto"}>
+        <div className="flex flex-col gap-5 p-4 text-xs font-medium">
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Voice Details
+            </h4>
+            <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-2 bg-muted/20 p-2.5 rounded-lg border border-border/20">
+              <span className="text-muted-foreground select-none">Type</span>
+              <span className="font-extrabold uppercase text-[10px] text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20 w-fit">
+                Voiceover
+              </span>
+              <span className="text-muted-foreground select-none">Name</span>
+              <Input
+                value={voiceTrack.name}
+                onChange={(e) => updateVoiceTrackProperty("name", e.target.value)}
+                className="h-7 text-xs font-semibold px-2 py-0.5 rounded border border-border/40 focus:border-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Narration Text
+            </h4>
+            <textarea
+              value={voiceTrack.text}
+              onChange={(e) => updateVoiceTrackProperty("text", e.target.value)}
+              className="h-28 w-full resize-none rounded-lg border border-border/50 bg-card p-2 text-[11px] font-semibold leading-relaxed outline-none focus:border-cyan-400"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewVoiceTrack}
+              className="h-8 text-[10px] font-bold gap-1"
+            >
+              <IconPlayerPlay className="h-3.5 w-3.5" />
+              Preview Voice
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Voice Settings
+            </h4>
+            <div className="flex flex-col gap-3 bg-muted/20 p-3 rounded-lg border border-border/20">
+              <div className="grid grid-cols-[4rem_minmax(0,1fr)_2.75rem] items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                <span>Volume</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={voiceTrack.volume ?? 1}
+                  onChange={(e) => updateVoiceTrackProperty("volume", clampTrackValue(Number(e.target.value), 0, 1))}
+                  className="h-1.5 accent-cyan-400 rounded bg-neutral-900 cursor-pointer"
+                />
+                <span className="text-right font-black text-foreground">{Math.round((voiceTrack.volume ?? 1) * 100)}%</span>
+
+                <span>Speed</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  value={voiceTrack.rate ?? 1}
+                  onChange={(e) => updateVoiceTrackProperty("rate", clampTrackValue(Number(e.target.value), 0.5, 2))}
+                  className="h-1.5 accent-cyan-400 rounded bg-neutral-900 cursor-pointer"
+                />
+                <span className="text-right font-black text-foreground">{(voiceTrack.rate ?? 1).toFixed(2)}x</span>
+
+                <span>Pitch</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={voiceTrack.pitch ?? 1}
+                  onChange={(e) => updateVoiceTrackProperty("pitch", clampTrackValue(Number(e.target.value), 0, 2))}
+                  className="h-1.5 accent-cyan-400 rounded bg-neutral-900 cursor-pointer"
+                />
+                <span className="text-right font-black text-foreground">{(voiceTrack.pitch ?? 1).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Timeline Span
+            </h4>
+            <div className="flex flex-col gap-3 bg-muted/20 p-3 rounded-lg border border-border/20">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                  <span>Starts at</span>
+                  <span className="font-black">{(voiceTrack.startTime ?? 0).toFixed(1)}s</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={duration}
+                  step={0.1}
+                  value={voiceTrack.startTime ?? 0}
+                  onChange={(e) => updateVoiceTrackProperty("startTime", clampTrackValue(Number(e.target.value), 0, duration))}
+                  className="h-1.5 w-full accent-cyan-400 rounded bg-neutral-900 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                  <span>Duration</span>
+                  <span className="font-black">{(voiceTrack.duration ?? 1).toFixed(1)}s</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={Math.max(duration, voiceTrack.duration ?? 1)}
+                  step={0.1}
+                  value={voiceTrack.duration ?? 1}
+                  onChange={(e) => updateVoiceTrackProperty("duration", Math.max(0.5, Number(e.target.value)))}
+                  className="h-1.5 w-full accent-cyan-400 rounded bg-neutral-900 cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/30 pt-4 mt-2">
+            <Button
+              onClick={handleDeleteVoiceTrack}
+              variant="destructive"
+              className="w-full h-9 text-xs gap-2 shadow-lg shadow-rose-500/10 hover:scale-[1.01] transition-transform"
+            >
+              <IconTrash className="h-4 w-4 shrink-0" />
+              Delete Voiceover
+            </Button>
+          </div>
+        </div>
+      </EditorPanel>
+    );
+  }
 
   if (track) {
     return (
@@ -353,6 +558,27 @@ export function InspectorPanel({ className }: { className?: string }) {
     toast.success(`Removed layer "${entity.name || "element"}"`);
   };
 
+  const updateRigBoneRotation = (boneId: RigBoneId, value: number) => {
+    const current = entity.type === "rig" ? (entity.boneRotations ?? {}) : {};
+    updateProperty("boneRotations", {
+      ...current,
+      [boneId]: value,
+    });
+  };
+
+  const copyRigPoseJson = async () => {
+    if (entity.type !== "rig") return;
+    const payload = {
+      id: `${entity.name || "custom_pose"}`.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+      basePose: entity.pose,
+      face: entity.face,
+      mouth: entity.mouth,
+      bones: entity.boneRotations ?? {},
+    };
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    toast.success("Copied pose JSON to clipboard");
+  };
+
   return (
     <EditorPanel title="Inspector" className={className ?? "max-h-none overflow-y-auto"}>
       <div className="flex flex-col gap-5 p-4 text-xs font-medium">
@@ -499,8 +725,215 @@ export function InspectorPanel({ className }: { className?: string }) {
                 </div>
               </>
             )}
+
+            {entity.type === "rig" && (
+              <>
+                <Label htmlFor="inp-rig-w" className="text-muted-foreground">Width px</Label>
+                <Input
+                  id="inp-rig-w"
+                  type="number"
+                  value={(entity as any).width ?? 150}
+                  onChange={(e) => updateProperty("width", Math.max(40, Math.round(Number(e.target.value))))}
+                  className="h-7.5 text-xs font-semibold"
+                />
+
+                <Label htmlFor="inp-rig-h" className="text-muted-foreground">Height px</Label>
+                <Input
+                  id="inp-rig-h"
+                  type="number"
+                  value={(entity as any).height ?? 190}
+                  onChange={(e) => updateProperty("height", Math.max(60, Math.round(Number(e.target.value))))}
+                  className="h-7.5 text-xs font-semibold"
+                />
+              </>
+            )}
+
+            {entity.type === "shape" && (
+              <>
+                <Label htmlFor="inp-shape-w" className="text-muted-foreground">Width px</Label>
+                <Input
+                  id="inp-shape-w"
+                  type="number"
+                  value={(entity as any).width ?? 120}
+                  onChange={(e) => updateProperty("width", Math.max(10, Math.round(Number(e.target.value))))}
+                  className="h-7.5 text-xs font-semibold"
+                />
+
+                <Label htmlFor="inp-shape-h" className="text-muted-foreground">Height px</Label>
+                <Input
+                  id="inp-shape-h"
+                  type="number"
+                  value={(entity as any).height ?? 80}
+                  onChange={(e) => updateProperty("height", Math.max(10, Math.round(Number(e.target.value))))}
+                  className="h-7.5 text-xs font-semibold"
+                />
+              </>
+            )}
           </div>
         </div>
+
+        {entity.type === "rig" && (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Pose Editor
+            </h4>
+            <div className="flex flex-col gap-3 bg-muted/20 p-3 rounded-lg border border-border/20">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="rig-pose-select" className="text-muted-foreground select-none">Teaching Pose</Label>
+                <select
+                  id="rig-pose-select"
+                  value={(entity as any).pose ?? "idle_presenter"}
+                  onChange={(e) => updateProperty("pose", e.target.value)}
+                  className="h-8 rounded border border-border/40 bg-card px-2 text-xs font-semibold outline-none focus:border-primary"
+                >
+                  {Object.values(TEACHING_RIG_POSES)
+                    .filter((item) => item.category === "teaching")
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateProperty("boneRotations", {})}
+                  className="h-8 text-[10px] font-bold"
+                >
+                  Reset Bones
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateProperty("boneRotations", mirrorRigBoneRotations((entity as any).boneRotations ?? {}))}
+                  className="h-8 text-[10px] font-bold"
+                >
+                  Mirror Pose
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold text-muted-foreground">Face</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {FACE_STATES.map((face) => (
+                    <button
+                      key={face}
+                      type="button"
+                      onClick={() => updateProperty("face", face)}
+                      className={`rounded border px-1.5 py-1 text-[9px] font-bold capitalize ${
+                        (entity as any).face === face
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/40 text-muted-foreground hover:bg-accent/40"
+                      }`}
+                    >
+                      {face}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold text-muted-foreground">Mouth</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {MOUTH_SHAPES.map((mouth) => (
+                    <button
+                      key={mouth}
+                      type="button"
+                      onClick={() => updateProperty("mouth", mouth)}
+                      className={`rounded border px-1.5 py-1 text-[9px] font-bold ${
+                        (entity as any).mouth === mouth
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/40 text-muted-foreground hover:bg-accent/40"
+                      }`}
+                    >
+                      {mouth}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t border-border/20 pt-3">
+                <span className="text-[10px] font-bold text-muted-foreground">Bone Rotations</span>
+                {RIG_BONE_IDS.map((boneId) => {
+                  const value = Number((entity as any).boneRotations?.[boneId] ?? 0);
+                  return (
+                    <div key={boneId} className="grid grid-cols-[4.75rem_minmax(0,1fr)_2.25rem] items-center gap-2">
+                      <span className="text-[9px] font-bold text-muted-foreground truncate">{boneId}</span>
+                      <input
+                        type="range"
+                        min={-3.14}
+                        max={3.14}
+                        step={0.02}
+                        value={value}
+                        onChange={(e) => updateRigBoneRotation(boneId, Number(e.target.value))}
+                        className="h-1.5 accent-primary rounded bg-neutral-900 cursor-pointer"
+                      />
+                      <span className="text-right text-[9px] font-black tabular-nums">{value.toFixed(1)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void copyRigPoseJson()}
+                className="h-8 text-[10px] font-bold"
+              >
+                Copy Pose JSON
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {entity.type === "shape" && (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 select-none">
+              Shape Style
+            </h4>
+            <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 bg-muted/20 p-3 rounded-lg border border-border/20">
+              <Label htmlFor="shape-fill" className="text-muted-foreground">Fill</Label>
+              <Input
+                id="shape-fill"
+                value={(entity as any).fillColor ?? "transparent"}
+                onChange={(e) => updateProperty("fillColor", e.target.value)}
+                className="h-7.5 text-xs font-semibold"
+              />
+
+              <Label htmlFor="shape-stroke" className="text-muted-foreground">Stroke</Label>
+              <Input
+                id="shape-stroke"
+                value={(entity as any).strokeColor ?? "#111827"}
+                onChange={(e) => updateProperty("strokeColor", e.target.value)}
+                className="h-7.5 text-xs font-semibold"
+              />
+
+              <Label htmlFor="shape-stroke-width" className="text-muted-foreground">Stroke px</Label>
+              <Input
+                id="shape-stroke-width"
+                type="number"
+                min={0}
+                value={(entity as any).strokeWidth ?? 2}
+                onChange={(e) => updateProperty("strokeWidth", Math.max(0, Number(e.target.value)))}
+                className="h-7.5 text-xs font-semibold"
+              />
+
+              <Label htmlFor="shape-text" className="text-muted-foreground">Label</Label>
+              <Input
+                id="shape-text"
+                value={(entity as any).text ?? ""}
+                onChange={(e) => updateProperty("text", e.target.value)}
+                className="h-7.5 text-xs font-semibold"
+              />
+            </div>
+          </div>
+        )}
 
         {/* SECTION: ARRANGEMENT / LAYERING */}
         <div className="flex flex-col gap-2">

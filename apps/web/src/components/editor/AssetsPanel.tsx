@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { spriteManifest } from "@stickman/shared";
+import { TEACHING_SHAPE_PRESETS, spriteManifest } from "@stickman/shared";
 import { clipPath } from "@stickman/shared";
+import type { ShapeKind } from "@stickman/shared";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
+import { createPresenterRigEntity, createShapeEntity } from "@/lib/teaching-entities";
 import { 
   IconChevronDown, 
   IconChevronRight, 
@@ -35,6 +37,8 @@ export function AssetsPanel({ className }: { className?: string }) {
     backgrounds: false,
     props: false,
     uploads: true,
+    teaching: true,
+    teachingShapes: true,
   });
 
   const [customAssets, setCustomAssets] = useState<any[]>([]);
@@ -97,6 +101,43 @@ export function AssetsPanel({ className }: { className?: string }) {
     e.dataTransfer.setData("application/stickman-clip", clip);
     e.dataTransfer.setData("text/plain", clip);
     e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handlePresenterClick = () => {
+    if (!document) return;
+    const newEntity = createPresenterRigEntity(
+      activeLayerId || document.layers[0]?.id || "default-layer",
+      130,
+      document.stage.height - 60,
+      document.timeline?.duration ?? 5
+    );
+    setDocument({
+      ...document,
+      entities: [...document.entities, newEntity],
+    });
+    setSelectedEntity(newEntity.id);
+    import("sonner").then(({ toast }) => {
+      toast.success("Added teaching presenter rig");
+    });
+  };
+
+  const handleTeachingShapeClick = (kind: ShapeKind) => {
+    if (!document) return;
+    const newEntity = createShapeEntity(
+      kind,
+      activeLayerId || document.layers[0]?.id || "default-layer",
+      document.stage.width * 0.62,
+      document.stage.height * 0.42,
+      document.timeline?.duration ?? 5
+    );
+    setDocument({
+      ...document,
+      entities: [...document.entities, newEntity],
+    });
+    setSelectedEntity(newEntity.id);
+    import("sonner").then(({ toast }) => {
+      toast.success(`Added ${newEntity.name}`);
+    });
   };
 
   // Central item click handler
@@ -188,6 +229,61 @@ export function AssetsPanel({ className }: { className?: string }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 text-xs flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <h4 className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/40 px-1 select-none">
+            Teaching Kit
+          </h4>
+          <div className="flex flex-col gap-0.5">
+            <button
+              type="button"
+              draggable
+              onDragStart={(e) => onDragStart(e, "teaching/rig/presenter")}
+              onClick={handlePresenterClick}
+              className="group flex items-center justify-between cursor-pointer rounded px-2 py-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all duration-150"
+              title="Add an editable teaching presenter rig"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <IconUser className="h-4 w-4 text-primary shrink-0" />
+                <span className="truncate text-[10px] font-semibold">Teaching Presenter Rig</span>
+              </div>
+              <IconPlus className="h-2.5 w-2.5 text-primary/70 opacity-0 group-hover:opacity-100" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => toggleGroup("teachingShapes")}
+              className="flex items-center justify-between gap-2.5 rounded px-2 py-1 text-left font-bold text-foreground/90 hover:bg-accent/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <IconBox className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="truncate text-[11px] font-semibold">Diagram Shapes</span>
+              </div>
+              {expandedGroups.teachingShapes ? (
+                <IconChevronDown className="h-3 w-3 text-muted-foreground/60" />
+              ) : (
+                <IconChevronRight className="h-3 w-3 text-muted-foreground/60" />
+              )}
+            </button>
+
+            {expandedGroups.teachingShapes && (
+              <div className="border-l border-border/30 ml-4 pl-2.5 py-0.5 flex flex-col gap-0.5">
+                {TEACHING_SHAPE_PRESETS.map((preset) => (
+                  <div
+                    key={preset.kind}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, `teaching/shape/${preset.kind}`)}
+                    onClick={() => handleTeachingShapeClick(preset.kind)}
+                    className="group flex items-center justify-between cursor-pointer rounded px-2 py-1 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-400 transition-all duration-150"
+                    title="Click to add or drag onto canvas"
+                  >
+                    <span className="truncate text-[10px] font-medium">{preset.name}</span>
+                    <IconPlus className="h-2.5 w-2.5 text-amber-400/80 opacity-0 group-hover:opacity-100" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         
         {/* SECTION 1: PLATFORM CHARACTERS */}
         <div className="flex flex-col gap-1.5">

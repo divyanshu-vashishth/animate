@@ -10,7 +10,9 @@ import { InspectorPanel } from "@/components/editor/InspectorPanel";
 import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
-import { AUTOSAVE_DEBOUNCE_MS, spriteManifest } from "@stickman/shared";
+import { AUTOSAVE_DEBOUNCE_MS, RIG_BONE_IDS, spriteManifest } from "@stickman/shared";
+import type { FaceState, MouthShape, RigBoneId, ShapeKind, VoiceTrackData } from "@stickman/shared";
+import { drawRigToCanvas, drawShapeToCanvas } from "@/lib/draw-teaching";
 import { AudioSyncController } from "@/components/editor/AudioSyncController";
 import {
   IconVideo,
@@ -26,7 +28,9 @@ import {
   IconCloudUpload,
   IconLoader2,
   IconLock,
-  IconMusic
+  IconMicrophone,
+  IconMusic,
+  IconPlayerPlay
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -51,6 +55,51 @@ const CANVAS_PRESETS = [
   { name: "Sunset Clay", value: "#451A03" },
 ];
 
+const DEFAULT_VOICE_TEXT = "SAP is enterprise software that connects finance, sales, operations, and analytics in one business system.";
+
+const clamp = (value: number, min: number, max: number) => {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+};
+
+const estimateVoiceDuration = (text: string, rate = 1) => {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount === 0) return 1.5;
+  const wordsPerSecond = 2.45 * clamp(rate, 0.5, 2);
+  return Math.max(1.5, Math.round((wordCount / wordsPerSecond) * 10) / 10);
+};
+
+const normalizeVoiceTracks = (tracks: unknown): VoiceTrackData[] | undefined => {
+  if (!Array.isArray(tracks)) return undefined;
+
+  const normalized: VoiceTrackData[] = [];
+
+  tracks.forEach((track: any, index) => {
+    const text = String(track?.text ?? "").trim();
+    if (!text) return;
+    const rate = clamp(Number(track.rate ?? 1), 0.5, 2);
+    const rawStartTime = Number(track.startTime ?? 0);
+    const rawDuration = Number(track.duration ?? estimateVoiceDuration(text, rate));
+    const startTime = Number.isFinite(rawStartTime) ? Math.max(0, rawStartTime) : 0;
+    const duration = Number.isFinite(rawDuration) ? Math.max(1, rawDuration) : estimateVoiceDuration(text, rate);
+
+    normalized.push({
+      id: typeof track.id === "string" && track.id ? track.id : crypto.randomUUID(),
+      name: typeof track.name === "string" && track.name ? track.name : `Narration ${index + 1}`,
+      text,
+      voiceName: typeof track.voiceName === "string" ? track.voiceName : undefined,
+      lang: typeof track.lang === "string" ? track.lang : undefined,
+      rate,
+      pitch: clamp(Number(track.pitch ?? 1), 0, 2),
+      volume: clamp(Number(track.volume ?? 1), 0, 1),
+      startTime,
+      duration,
+    });
+  });
+
+  return normalized;
+};
+
 export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -62,6 +111,7 @@ export default function EditorPage() {
   const isDirty = useEditorStore((s) => s.isDirty);
   const selectedEntityIds = useEditorStore((s) => s.selectedEntityIds);
   const setSelectedEntity = useEditorStore((s) => s.setSelectedEntity);
+  const setSelectedVoiceTrack = useEditorStore((s) => s.setSelectedVoiceTrack);
   const timelineTime = useEditorStore((s) => s.timelineTime);
   const playbackState = useEditorStore((s) => s.playbackState);
   const { data: session, isPending } = authClient.useSession();
@@ -128,7 +178,7 @@ export default function EditorPage() {
   const [exportProgress, setExportProgress] = useState<number | null>(null);
   const [exportStatusText, setExportStatusText] = useState("Encoding vector sequences...");
   const [exportFormat, setExportFormat] = useState<"mp4" | "gif" | "webm">("mp4");
-  const [aiPrompt, setAiPrompt] = useState("fighter performs a run and slash attack");
+  const [aiPrompt, setAiPrompt] = useState("explain what SAP is with a stickman teacher and simple business boxes");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [enhancedPrompt, setEnhancedPrompt] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -136,6 +186,9 @@ export default function EditorPage() {
   const [loadingCustomAssets, setLoadingCustomAssets] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [voiceText, setVoiceText] = useState(DEFAULT_VOICE_TEXT);
+  const [voiceRate, setVoiceRate] = useState(1);
+  const [voicePitch, setVoicePitch] = useState(1);
 
   const loadCustomAssets = useCallback(async () => {
     setLoadingCustomAssets(true);
@@ -412,6 +465,58 @@ export default function EditorPage() {
     toast.success(`Added soundtrack "${name}" to timeline`);
   };
 
+  const handlePreviewVoice = (text = voiceText, rate = voiceRate, pitch = voicePitch, volume = 1) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      toast.error("Add narration text first");
+      return;
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      toast.error("This browser does not support voice preview");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(trimmed);
+    utterance.rate = clamp(rate, 0.5, 2);
+    utterance.pitch = clamp(pitch, 0, 2);
+    utterance.volume = clamp(volume, 0, 1);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleAddVoiceTrack = () => {
+    if (!document) return;
+    const text = voiceText.trim();
+    if (!text) {
+      toast.error("Add narration text first");
+      return;
+    }
+
+    const currentDuration = document.timeline?.duration ?? 10;
+    const startTime = Math.max(0, Math.min(timelineTime, currentDuration));
+    const duration = estimateVoiceDuration(text, voiceRate);
+    const newTrack: VoiceTrackData = {
+      id: crypto.randomUUID(),
+      name: `Narration ${((document.voiceTracks || []).length + 1).toString()}`,
+      text,
+      rate: clamp(voiceRate, 0.5, 2),
+      pitch: clamp(voicePitch, 0, 2),
+      volume: 1,
+      startTime,
+      duration,
+    };
+
+    setDocument({
+      ...document,
+      timeline: document.timeline
+        ? { ...document.timeline, duration: Math.max(currentDuration, startTime + duration) }
+        : { duration: Math.max(10, startTime + duration), fps: 60, tracks: [] },
+      voiceTracks: [...(document.voiceTracks || []), newTrack],
+    });
+    setSelectedVoiceTrack(newTrack.id);
+    toast.success(`Added voiceover "${newTrack.name}" to timeline`);
+  };
+
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -502,6 +607,33 @@ export default function EditorPage() {
         characters: ["fighter", "pistol", "sword"],
         props: spriteManifest.props,
         backgrounds: spriteManifest.backgrounds,
+        rigActions: [
+          "idle_presenter",
+          "talk_neutral",
+          "talk_one_hand",
+          "talk_two_hands",
+          "point_left",
+          "point_right",
+          "point_up",
+          "point_down",
+          "present_board",
+          "write_board",
+          "erase_board",
+          "draw_box",
+          "underline",
+          "connect_boxes",
+          "drag_box",
+          "compare_two_options",
+          "count_one",
+          "count_two",
+          "count_three",
+          "ask_question",
+          "think",
+          "warning",
+          "highlight_key_point",
+          "nod",
+          "conclusion",
+        ],
       };
       const customUploads = document.entities
           .filter((e: any) => e.type === "image")
@@ -532,6 +664,33 @@ export default function EditorPage() {
         characters: ["fighter", "pistol", "sword"],
         props: spriteManifest.props,
         backgrounds: spriteManifest.backgrounds,
+        rigActions: [
+          "idle_presenter",
+          "talk_neutral",
+          "talk_one_hand",
+          "talk_two_hands",
+          "point_left",
+          "point_right",
+          "point_up",
+          "point_down",
+          "present_board",
+          "write_board",
+          "erase_board",
+          "draw_box",
+          "underline",
+          "connect_boxes",
+          "drag_box",
+          "compare_two_options",
+          "count_one",
+          "count_two",
+          "count_three",
+          "ask_question",
+          "think",
+          "warning",
+          "highlight_key_point",
+          "nod",
+          "conclusion",
+        ],
       };
       const customUploads = document.entities
           .filter((e: any) => e.type === "image")
@@ -552,11 +711,18 @@ export default function EditorPage() {
           const src = imageSrcByName.get(entity.name);
           return src ? { ...entity, src } : entity;
         });
+        const voiceTracks = normalizeVoiceTracks(docData.voiceTracks);
+        const voiceTrackEnd = voiceTracks?.reduce(
+          (maxEnd, track) => Math.max(maxEnd, track.startTime + track.duration),
+          0
+        ) ?? 0;
+        const timeline = docData.timeline || document.timeline;
         setDocument({
           ...document,
           layers: docData.layers,
           entities,
-          timeline: docData.timeline || document.timeline
+          timeline: timeline ? { ...timeline, duration: Math.max(timeline.duration ?? 10, voiceTrackEnd) } : timeline,
+          voiceTracks: voiceTracks ?? document.voiceTracks
         });
         toast.success("Generated complex AI layers and movement keyframes successfully!");
       } else {
@@ -707,6 +873,53 @@ export default function EditorPage() {
         }
       }
 
+      if (entity.type === "rig") {
+        const pose = String(evaluateProperty(document, entity.id, "rig.pose", time, entity.pose || "idle_presenter"));
+        const face = String(evaluateProperty(document, entity.id, "rig.face", time, entity.face || "smile")) as FaceState;
+        const mouth = String(evaluateProperty(document, entity.id, "rig.mouth", time, entity.mouth || "closed")) as MouthShape;
+        const boneRotations: Partial<Record<RigBoneId, number>> = {};
+        for (const boneId of RIG_BONE_IDS) {
+          const fallback = entity.boneRotations?.[boneId] ?? 0;
+          const value = evaluateProperty(document, entity.id, `rig.bones.${boneId}`, time, fallback);
+          if (typeof value === "number") boneRotations[boneId] = value;
+        }
+
+        drawRigToCanvas(ctx, {
+          x,
+          y,
+          rotation,
+          scaleX,
+          scaleY,
+          width: width || 150,
+          height: height || 190,
+          pose,
+          face,
+          mouth,
+          boneRotations,
+        });
+      }
+
+      if (entity.type === "shape") {
+        const fillColor = evaluateProperty(document, entity.id, "shape.fillColor", time, entity.fillColor);
+        const strokeColor = evaluateProperty(document, entity.id, "shape.strokeColor", time, entity.strokeColor);
+        const opacity = evaluateProperty(document, entity.id, "opacity", time, entity.opacity);
+        drawShapeToCanvas(ctx, {
+          x,
+          y,
+          rotation,
+          scaleX,
+          scaleY,
+          width,
+          height,
+          shape: entity.shape as ShapeKind,
+          fillColor: typeof fillColor === "string" ? fillColor : entity.fillColor,
+          strokeColor: typeof strokeColor === "string" ? strokeColor : entity.strokeColor,
+          strokeWidth: entity.strokeWidth,
+          opacity: typeof opacity === "number" ? opacity : entity.opacity,
+          text: entity.text,
+        });
+      }
+
       // C. Base64 Uploaded images render
       if (entity.type === "image" && entity.src) {
         const height = evaluateProperty(document, entity.id, "height", time, entity.height ?? 120);
@@ -731,6 +944,10 @@ export default function EditorPage() {
   // Visually Lossless Offline Canvas JPEG Capture & FFmpeg server-side encoder
   const triggerExport = async () => {
     if (!document) return;
+
+    if ((document.voiceTracks || []).length > 0 || (document.audioTracks || []).length > 0) {
+      toast.info("Audio and voiceover tracks play in editor preview. Current export includes visuals only until renderer audio muxing is added.");
+    }
 
     // Create offscreen buffer canvas
     const canvas = window.document.createElement("canvas");
@@ -1270,6 +1487,74 @@ export default function EditorPage() {
                   Audio & Soundtracks
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
+                  {/* Browser Voiceover */}
+                  <div className="flex flex-col gap-3 rounded-xl border border-border/30 bg-muted/15 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="voiceover-text" className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground/70 select-none">
+                        <IconMicrophone className="h-3.5 w-3.5 text-primary" />
+                        Voiceover Narration
+                      </Label>
+                      <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-primary">
+                        Preview
+                      </span>
+                    </div>
+                    <textarea
+                      id="voiceover-text"
+                      value={voiceText}
+                      onChange={(e) => setVoiceText(e.target.value)}
+                      placeholder="Type what the stickman should say..."
+                      className="h-24 w-full resize-none rounded-lg border border-border/50 bg-card p-2 text-[11px] font-semibold leading-relaxed outline-none focus:border-primary"
+                    />
+                    <div className="grid grid-cols-[4rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                      <span>Speed</span>
+                      <input
+                        type="range"
+                        min={0.5}
+                        max={2}
+                        step={0.05}
+                        value={voiceRate}
+                        onChange={(e) => setVoiceRate(Number(e.target.value))}
+                        className="h-1.5 accent-primary rounded bg-neutral-900 cursor-pointer"
+                      />
+                      <span className="text-right font-black text-foreground">{voiceRate.toFixed(2)}x</span>
+
+                      <span>Pitch</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        value={voicePitch}
+                        onChange={(e) => setVoicePitch(Number(e.target.value))}
+                        className="h-1.5 accent-primary rounded bg-neutral-900 cursor-pointer"
+                      />
+                      <span className="text-right font-black text-foreground">{voicePitch.toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePreviewVoice()}
+                        className="h-8 text-[10px] font-bold gap-1"
+                      >
+                        <IconPlayerPlay className="h-3.5 w-3.5" />
+                        Preview Voice
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddVoiceTrack}
+                        className="h-8 text-[10px] font-black gap-1"
+                      >
+                        <IconPlus className="h-3.5 w-3.5" />
+                        Add Voiceover
+                      </Button>
+                    </div>
+                    <p className="text-[9px] leading-relaxed text-muted-foreground/75 select-none">
+                      Browser voice plays during editor preview. Export audio muxing still needs renderer support.
+                    </p>
+                  </div>
                   
                   {/* Upload Audio File */}
                   <div className="flex flex-col gap-2">
@@ -1386,7 +1671,7 @@ export default function EditorPage() {
                       id="ai-prompt-input"
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="e.g. fighter runs from left, encounters sword stickman, jumps and strikes..."
+                      placeholder="e.g. explain what SAP is with a presenter, definition box, module boxes, and arrows..."
                       className="w-full h-20 bg-card border border-border/50 rounded-lg p-2 font-semibold outline-none focus:border-primary text-xs resize-none"
                     />
 
@@ -1448,7 +1733,7 @@ export default function EditorPage() {
                   </div>
 
                   <p className="text-[9px] text-muted-foreground/75 leading-relaxed bg-muted/25 p-2.5 rounded border border-border/10 select-none">
-                    💡 Tip: Step 1 will transform a short prompt like "two guys running" into a detailed storyboard. Step 2 parses it to place characters on the baseline and animates them using timeline keyframes automatically!
+                    Tip: Step 1 turns a short teaching prompt into a timed storyboard. Step 2 builds presenter rigs, labels, boxes, arrows, mouth motion, and optional narration.
                   </p>
                 </div>
               </div>
