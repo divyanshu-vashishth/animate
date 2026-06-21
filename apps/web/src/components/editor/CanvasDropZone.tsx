@@ -8,44 +8,8 @@ import { toast } from "sonner";
 import { createPresenterRigEntity, createShapeEntity } from "@/lib/teaching-entities";
 import { RigEntityView } from "./RigEntityView";
 import { ShapeEntityView } from "./ShapeEntityView";
-
-// Keyframe property evaluator to support smooth animations on canvas
-const evaluateProperty = (document: any, entityId: string, property: string, time: number, defaultValue: any) => {
-  if (!document || !document.timeline || !document.timeline.tracks) {
-    return defaultValue;
-  }
-  const track = document.timeline.tracks.find(
-    (t: any) => t.entityId === entityId && t.property === property
-  );
-  if (!track || !track.keyframes || track.keyframes.length === 0) {
-    return defaultValue;
-  }
-
-  // Sort keyframes by ascending time
-  const keyframes = [...track.keyframes].sort((a, b) => a.time - b.time);
-
-  // Time is before or at the first keyframe
-  if (time <= keyframes[0].time) {
-    return keyframes[0].value;
-  }
-  // Time is after or at the last keyframe
-  if (time >= keyframes[keyframes.length - 1].time) {
-    return keyframes[keyframes.length - 1].value;
-  }
-
-  // Linear/Discrete interpolation between matching keyframes
-  for (let i = 0; i < keyframes.length - 1; i++) {
-    const kfA = keyframes[i];
-    const kfB = keyframes[i + 1];
-    if (time >= kfA.time && time <= kfB.time) {
-      if (typeof kfA.value === "number" && typeof kfB.value === "number") {
-        const ratio = (time - kfA.time) / (kfB.time - kfA.time);
-        return kfA.value + (kfB.value - kfA.value) * ratio;
-      }
-      return kfA.value; // Discrete transition for strings, booleans, clips, texts
-    }
-  }
-};
+import { EffectEntityView } from "./EffectEntityView";
+import { evaluateProperty, getActiveKeyframeTime } from "@/lib/timeline-evaluator";
 
 interface CanvasSpriteEntityProps {
   entity: any;
@@ -101,7 +65,8 @@ function CanvasSpriteEntity({
       const clipData = charData ? charData[action] : null;
       if (clipData) {
         const fps = clipData.fps || 10;
-        const frameIndex = Math.floor(timelineTime * fps) % clipData.frames.length;
+        const clipStart = getActiveKeyframeTime(document, entity.id, "spriteAnimation.clip", timelineTime);
+        const frameIndex = Math.floor((timelineTime - clipStart) * fps) % clipData.frames.length;
         const frameName = clipData.frames[frameIndex] || clipData.frames[0];
         frameSrc = spriteUrl(clipData.folder, frameName);
       }
@@ -409,11 +374,12 @@ export function CanvasDropZone() {
   };
 
   // Filter visible entities according to playhead selection bounds
+  const layerOrder = new Map((document?.layers || []).map((layer) => [layer.id, layer.order]));
   const visibleEntities = (document?.entities || []).filter((entity: any) => {
     const start = entity.startTime ?? 0;
-    const end = entity.endTime ?? 5;
+    const end = entity.endTime ?? document?.timeline?.duration ?? 10;
     return timelineTime >= start && timelineTime <= end;
-  });
+  }).sort((a, b) => (layerOrder.get(a.layerId) ?? 0) - (layerOrder.get(b.layerId) ?? 0));
 
   const activeBg = document?.stage.backgroundColor || "#FFFFFF";
 
@@ -517,6 +483,8 @@ export function CanvasDropZone() {
               />
             );
           }
+
+          if (entity.type === "effect") return <EffectEntityView key={entity.id} entity={entity} time={timelineTime} />;
 
           // 2. TEXT RENDER
           if (entity.type === "text") {

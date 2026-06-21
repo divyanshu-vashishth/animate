@@ -10,6 +10,22 @@ const app = new Hono();
 app.use("/*", cors());
 const OUTPUT_DIR = join(process.cwd(), "output");
 
+interface RenderAudioClip {
+  id: string;
+  dataUrl: string;
+  startTime: number;
+  duration: number;
+  sourceOffset?: number;
+  volume: number;
+  pan?: number;
+  fadeIn?: number;
+  fadeOut?: number;
+}
+
+interface PreparedAudioClip extends Omit<RenderAudioClip, "dataUrl"> {
+  path: string;
+}
+
 app.get("/health", (c) =>
   c.json({ status: "ok", service: "stickman-renderer", ffmpeg: checkFfmpeg() })
 );
@@ -20,16 +36,20 @@ app.post("/render", async (c) => {
     format: "mp4" | "gif" | "webm";
     frames: string[]; // Base64 data URLs
     fps?: number;
+    audioClips?: RenderAudioClip[];
   }>();
 
   const jobId = body.jobId || crypto.randomUUID();
   const format = body.format || "mp4";
   const frames = body.frames || [];
   const fps = body.fps ?? 30;
+  const audioClips = format === "gif" ? [] : (body.audioClips ?? []);
 
   if (frames.length === 0) {
     return c.json({ error: "No frames provided" }, 400);
   }
+  if (!Number.isFinite(fps) || fps < 1 || fps > 60) return c.json({ error: "FPS must be between 1 and 60" }, 400);
+  if (audioClips.length > 64) return c.json({ error: "A maximum of 64 audio clips is supported" }, 400);
 
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const jobDir = join(OUTPUT_DIR, jobId);
@@ -38,6 +58,8 @@ app.post("/render", async (c) => {
 
   const outputPath = join(jobDir, `output.${format}`);
   const inputPattern = join(framesDir, "frame_%05d.jpg");
+  const audioDir = join(jobDir, "audio");
+  mkdirSync(audioDir, { recursive: true });
 
   // 1. Write frames concurrently (async-parallel)
   await Promise.all(
@@ -49,6 +71,30 @@ app.post("/render", async (c) => {
       return fsPromises.writeFile(filePath, buffer);
     })
   );
+  let totalAudioBytes = 0;
+  const preparedAudio = await Promise.all(audioClips.map(async (clip, index): Promise<PreparedAudioClip> => {
+    const match = /^data:(audio\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(clip.dataUrl);
+    if (!match) throw new Error(`Audio clip ${clip.id || index} is not a base64 audio data URL`);
+    const mime = match[1]!;
+    const extension = mime.includes("wav") ? "wav" : mime.includes("mpeg") ? "mp3" : mime.includes("ogg") ? "ogg" : "m4a";
+    const buffer = Buffer.from(match[2]!, "base64");
+    totalAudioBytes += buffer.byteLength;
+    if (buffer.byteLength > 15 * 1024 * 1024) throw new Error(`Audio clip ${clip.id || index} exceeds 15 MB`);
+    const path = join(audioDir, `clip_${String(index).padStart(3, "0")}.${extension}`);
+    await fsPromises.writeFile(path, buffer);
+    return {
+      id: clip.id || `clip-${index}`,
+      path,
+      startTime: Math.max(0, Number(clip.startTime) || 0),
+      duration: Math.max(0.05, Number(clip.duration) || 0.05),
+      sourceOffset: Math.max(0, Number(clip.sourceOffset) || 0),
+      volume: Math.max(0, Math.min(1, Number(clip.volume) || 0)),
+      pan: Math.max(-1, Math.min(1, Number(clip.pan) || 0)),
+      fadeIn: Math.max(0, Number(clip.fadeIn) || 0),
+      fadeOut: Math.max(0, Number(clip.fadeOut) || 0),
+    };
+  }));
+  if (totalAudioBytes > 60 * 1024 * 1024) return c.json({ error: "Combined audio exceeds 60 MB" }, 400);
 
   try {
     if (!checkFfmpeg()) {
@@ -56,7 +102,7 @@ app.post("/render", async (c) => {
     }
 
     // 2. Encode with FFmpeg using senior-grade high-quality profiles
-    await encodeWithFfmpeg(framesDir, inputPattern, outputPath, format, fps, jobDir);
+    await encodeWithFfmpeg(framesDir, inputPattern, outputPath, format, fps, jobDir, preparedAudio, frames.length / fps);
 
     // 3. Read output file
     const outputBuffer = await fsPromises.readFile(outputPath);
@@ -98,7 +144,9 @@ function encodeWithFfmpeg(
   outputPath: string,
   format: string,
   fps: number,
-  jobDir: string
+  jobDir: string,
+  audioClips: PreparedAudioClip[],
+  videoDuration: number
 ): Promise<void> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -141,7 +189,7 @@ function encodeWithFfmpeg(
         gifProc.on("error", reject);
       } else {
         // Broadcast-quality MP4/WebM profile parameters
-        const args =
+        const videoArgs =
           format === "webm"
             ? [
                 "-y",
@@ -155,7 +203,6 @@ function encodeWithFfmpeg(
                 "2M",
                 "-crf",
                 "20",
-                outputPath,
               ]
             : [
                 "-y",
@@ -171,11 +218,46 @@ function encodeWithFfmpeg(
                 "18",
                 "-preset",
                 "fast",
-                outputPath,
               ];
 
+        const audioInputs = audioClips.flatMap((clip) => ["-i", clip.path]);
+        let audioArgs: string[] = [];
+        if (audioClips.length > 0) {
+          const filters = audioClips.map((clip, index) => {
+            const fadeIn = Math.min(clip.fadeIn ?? 0, clip.duration / 2);
+            const fadeOut = Math.min(clip.fadeOut ?? 0, clip.duration / 2);
+            const fadeOutStart = Math.max(0, clip.duration - fadeOut);
+            const left = Math.max(0, 1 - Math.max(0, clip.pan ?? 0));
+            const right = Math.max(0, 1 + Math.min(0, clip.pan ?? 0));
+            const parts = [
+              `[${index + 1}:a]atrim=start=${clip.sourceOffset ?? 0}:duration=${clip.duration}`,
+              "asetpts=PTS-STARTPTS",
+              "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+              `volume=${clip.volume}`,
+              `pan=stereo|c0=${left.toFixed(3)}*c0|c1=${right.toFixed(3)}*c1`,
+            ];
+            if (fadeIn > 0) parts.push(`afade=t=in:st=0:d=${fadeIn}`);
+            if (fadeOut > 0) parts.push(`afade=t=out:st=${fadeOutStart}:d=${fadeOut}`);
+            parts.push(`adelay=${Math.round(clip.startTime * 1000)}:all=1[a${index}]`);
+            return parts.join(",");
+          });
+          const labels = audioClips.map((_, index) => `[a${index}]`).join("");
+          filters.push(`${labels}amix=inputs=${audioClips.length}:normalize=0:dropout_transition=0,alimiter=limit=0.89,loudnorm=I=-14:TP=-1:LRA=11[aout]`);
+          audioArgs = [
+            "-filter_complex", filters.join(";"),
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:a", format === "webm" ? "libopus" : "aac",
+            "-b:a", format === "webm" ? "160k" : "192k",
+            "-ar", "48000",
+            "-t", videoDuration.toFixed(6),
+          ];
+        }
+        const args = [...videoArgs.slice(0, 5), ...audioInputs, ...videoArgs.slice(5), ...audioArgs, outputPath];
+
         const proc = spawn("ffmpeg", args);
-        proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`Video encode failed with code ${code}`))));
+        let stderr = "";
+        proc.stderr.on("data", (chunk) => { stderr += String(chunk); });
+        proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`Video encode failed with code ${code}: ${stderr.slice(-2000)}`))));
         proc.on("error", reject);
       }
     } catch (error) {

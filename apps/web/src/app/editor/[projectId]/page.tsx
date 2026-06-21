@@ -11,8 +11,9 @@ import { AssetsPanel } from "@/components/editor/AssetsPanel";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "@/lib/api";
 import { AUTOSAVE_DEBOUNCE_MS, RIG_BONE_IDS, spriteManifest } from "@stickman/shared";
-import type { FaceState, MouthShape, RigBoneId, ShapeKind, VoiceTrackData } from "@stickman/shared";
-import { drawRigToCanvas, drawShapeToCanvas } from "@/lib/draw-teaching";
+import type { EffectEntityData, FaceState, MouthShape, RigBoneId, ShapeKind, VoiceTrackData } from "@stickman/shared";
+import { drawEffectToCanvas, drawRigToCanvas, drawShapeToCanvas } from "@/lib/draw-teaching";
+import { evaluateProperty, getActiveKeyframeTime } from "@/lib/timeline-evaluator";
 import { AudioSyncController } from "@/components/editor/AudioSyncController";
 import {
   IconVideo,
@@ -34,6 +35,11 @@ import {
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Slider } from "@/components/ui/slider";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const CANVAS_PRESETS = [
@@ -56,6 +62,19 @@ const CANVAS_PRESETS = [
 ];
 
 const DEFAULT_VOICE_TEXT = "SAP is enterprise software that connects finance, sales, operations, and analytics in one business system.";
+
+async function audioSourceToDataUrl(source: string): Promise<string> {
+  if (source.startsWith("data:")) return source;
+  const response = await fetch(source);
+  if (!response.ok) throw new Error(`Could not load audio source (${response.status})`);
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not encode audio source"));
+    reader.readAsDataURL(blob);
+  });
+}
 
 const clamp = (value: number, min: number, max: number) => {
   if (!Number.isFinite(value)) return min;
@@ -189,6 +208,15 @@ export default function EditorPage() {
   const [voiceText, setVoiceText] = useState(DEFAULT_VOICE_TEXT);
   const [voiceRate, setVoiceRate] = useState(1);
   const [voicePitch, setVoicePitch] = useState(1);
+  const [aiMode, setAiMode] = useState<"teaching" | "combat">("teaching");
+  const [combatDuration, setCombatDuration] = useState(20);
+  const [combatIntensity, setCombatIntensity] = useState<"grounded" | "cinematic" | "extreme">("cinematic");
+  const [combatWinner, setCombatWinner] = useState<"fighterA" | "fighterB" | "draw" | "auto">("auto");
+  const [combatSeed, setCombatSeed] = useState(1337);
+  const [fighterAName, setFighterAName] = useState("Strength");
+  const [fighterBName, setFighterBName] = useState("Speed");
+  const [fighterAColor, setFighterAColor] = useState("#C62828");
+  const [fighterBColor, setFighterBColor] = useState("#3949AB");
 
   const loadCustomAssets = useCallback(async () => {
     setLoadingCustomAssets(true);
@@ -735,39 +763,36 @@ export default function EditorPage() {
     }
   };
 
-  // Helper to resolve dynamic keyframe properties for the scene exporter
-  const evaluateProperty = (document: any, entityId: string, property: string, time: number, defaultValue: any) => {
-    if (!document || !document.timeline || !document.timeline.tracks) {
-      return defaultValue;
+  const handleGenerateCombat = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error("Describe the fight first");
+      return;
     }
-    const track = document.timeline.tracks.find(
-      (t: any) => t.entityId === entityId && t.property === property
-    );
-    if (!track || !track.keyframes || track.keyframes.length === 0) {
-      return defaultValue;
+    setAiGenerating(true);
+    toast.info("Solving contact choreography, reactions, and effects...");
+    try {
+      const result = await api.generateCombat({
+        prompt: aiPrompt,
+        duration: combatDuration,
+        intensity: combatIntensity,
+        winner: combatWinner,
+        moveCallouts: false,
+        seed: Math.max(0, Math.floor(combatSeed)),
+        fighters: [
+          { id: "fighterA", name: fighterAName.trim() || "Strength", color: fighterAColor },
+          { id: "fighterB", name: fighterBName.trim() || "Speed", color: fighterBColor },
+        ],
+      });
+      setDocument(result.document);
+      useEditorStore.getState().setTimelineTime(0);
+      setEnhancedPrompt(JSON.stringify(result.plan, null, 2));
+      result.warnings.forEach((warning) => toast.warning(warning));
+      toast.success("Combat scene generated at 24 FPS with synchronized effects and audio");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate combat scene");
+    } finally {
+      setAiGenerating(false);
     }
-
-    const keyframes = [...track.keyframes].sort((a, b) => a.time - b.time);
-
-    if (time <= keyframes[0].time) {
-      return keyframes[0].value;
-    }
-    if (time >= keyframes[keyframes.length - 1].time) {
-      return keyframes[keyframes.length - 1].value;
-    }
-
-    for (let i = 0; i < keyframes.length - 1; i++) {
-      const kfA = keyframes[i];
-      const kfB = keyframes[i + 1];
-      if (time >= kfA.time && time <= kfB.time) {
-        if (typeof kfA.value === "number" && typeof kfB.value === "number") {
-          const ratio = (time - kfA.time) / (kfB.time - kfA.time);
-          return kfA.value + (kfB.value - kfA.value) * ratio;
-        }
-        return kfA.value;
-      }
-    }
-    return defaultValue;
   };
 
   // Synchronous Offscreen Canvas Scene Painter
@@ -793,11 +818,12 @@ export default function EditorPage() {
     ctx.fillRect(0, docHeight - 60, docWidth, 3);
 
     // 3. Filter visible entities
+    const layerOrder = new Map(document.layers.map((layer: any) => [layer.id, layer.order]));
     const visible = document.entities.filter((entity: any) => {
       const start = entity.startTime ?? 0;
-      const end = entity.endTime ?? 5;
+      const end = entity.endTime ?? document.timeline?.duration ?? 10;
       return time >= start && time <= end;
-    });
+    }).sort((a: any, b: any) => Number(layerOrder.get(a.layerId) ?? 0) - Number(layerOrder.get(b.layerId) ?? 0));
 
     // 4. Render layers sequentially
     for (const ent of visible) {
@@ -846,7 +872,8 @@ export default function EditorPage() {
             const clipData = charData ? charData[action as string] : null;
             if (clipData) {
               const fps = clipData.fps || 10;
-              const frameIndex = Math.floor(time * fps) % clipData.frames.length;
+              const clipStart = getActiveKeyframeTime(document, entity.id, "spriteAnimation.clip", time);
+              const frameIndex = Math.floor((time - clipStart) * fps) % clipData.frames.length;
               const frameName = clipData.frames[frameIndex] || clipData.frames[0];
               frameSrc = `/sprites/${clipData.folder}/${frameName}`;
             }
@@ -893,11 +920,15 @@ export default function EditorPage() {
           width: width || 150,
           height: height || 190,
           pose,
+          rigId: entity.rigId,
           face,
           mouth,
           boneRotations,
+          strokeColor: entity.style?.strokeColor,
         });
       }
+
+      if (entity.type === "effect") drawEffectToCanvas(ctx, entity as EffectEntityData, time);
 
       if (entity.type === "shape") {
         const fillColor = evaluateProperty(document, entity.id, "shape.fillColor", time, entity.fillColor);
@@ -945,10 +976,6 @@ export default function EditorPage() {
   const triggerExport = async () => {
     if (!document) return;
 
-    if ((document.voiceTracks || []).length > 0 || (document.audioTracks || []).length > 0) {
-      toast.info("Audio and voiceover tracks play in editor preview. Current export includes visuals only until renderer audio muxing is added.");
-    }
-
     // Create offscreen buffer canvas
     const canvas = window.document.createElement("canvas");
     const docWidth = document.stage.width || 640;
@@ -984,13 +1011,13 @@ export default function EditorPage() {
     setExportStatusText("Capturing vector canvas frames...");
 
     const duration = document.timeline?.duration ?? 10;
-    const fps = 30;
+    const fps = document.timeline?.fps ?? 30;
     const totalFrames = Math.ceil(duration * fps);
     const capturedFrames: string[] = [];
 
-    // Capture sweep at exactly 30 FPS
-    for (let currentFrame = 0; currentFrame <= totalFrames; currentFrame++) {
-      const t = (currentFrame / totalFrames) * duration;
+    // Capture at the document timeline rate so preview and export use the same clock.
+    for (let currentFrame = 0; currentFrame < totalFrames; currentFrame++) {
+      const t = currentFrame / fps;
       useEditorStore.getState().setTimelineTime(t);
 
       // Render visuals dynamically to offscreen canvas
@@ -1012,7 +1039,21 @@ export default function EditorPage() {
     setExportStatusText(`Compiling high-fidelity ${exportFormat.toUpperCase()} on server via FFmpeg...`);
 
     try {
-      const blob = await api.renderDirect(projectId, exportFormat, capturedFrames, fps);
+      const audioSources = exportFormat === "gif" ? [] : [
+        ...(document.audioTracks || []).map((track) => ({
+          id: track.id, source: track.url, startTime: track.startTime, duration: track.duration,
+          sourceOffset: track.audioStartOffset, volume: track.volume, pan: track.pan, fadeIn: track.fadeIn, fadeOut: track.fadeOut,
+        })),
+        ...(document.voiceTracks || []).filter((track) => track.renderedAudioUrl).map((track) => ({
+          id: track.id, source: track.renderedAudioUrl!, startTime: track.startTime, duration: track.duration,
+          sourceOffset: 0, volume: track.volume, pan: track.speakerId === "fighterA" ? -0.18 : 0.18, fadeIn: 0.01, fadeOut: 0.08,
+        })),
+      ];
+      const audioClips = await Promise.all(audioSources.map(async ({ source, ...clip }) => ({
+        ...clip,
+        dataUrl: await audioSourceToDataUrl(source),
+      })));
+      const blob = await api.renderDirect(projectId, exportFormat, capturedFrames, fps, audioClips);
       const url = URL.createObjectURL(blob);
 
       const downloadAnchor = window.document.createElement("a");
@@ -1657,8 +1698,99 @@ export default function EditorPage() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs font-semibold">
 
+                  <ToggleGroup
+                    type="single"
+                    value={aiMode}
+                    onValueChange={(value) => value && setAiMode(value as "teaching" | "combat")}
+                    variant="outline"
+                    spacing={0}
+                    className="w-full"
+                  >
+                    <ToggleGroupItem value="teaching" className="flex-1">Teaching</ToggleGroupItem>
+                    <ToggleGroupItem value="combat" className="flex-1">Combat</ToggleGroupItem>
+                  </ToggleGroup>
+
+                  {aiMode === "combat" && (
+                    <div className="flex flex-col gap-4 rounded-xl border border-border/30 bg-muted/10 p-3.5">
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel htmlFor="combat-prompt">Fight concept</FieldLabel>
+                          <textarea
+                            id="combat-prompt"
+                            value={aiPrompt}
+                            onChange={(event) => setAiPrompt(event.target.value)}
+                            placeholder="Strength challenges Speed; Speed evades, counters, and the chosen fighter wins..."
+                            className="min-h-24 w-full resize-none rounded-lg border border-input bg-card p-2 text-xs outline-none focus:border-ring"
+                          />
+                          <FieldDescription>AI plans high-level beats; deterministic templates compile the exact motion.</FieldDescription>
+                        </Field>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field>
+                            <FieldLabel htmlFor="fighter-a-name">Fighter A</FieldLabel>
+                            <div className="flex gap-2">
+                              <Input id="fighter-a-name" value={fighterAName} onChange={(event) => setFighterAName(event.target.value)} />
+                              <Input aria-label="Fighter A color" type="color" value={fighterAColor} onChange={(event) => setFighterAColor(event.target.value)} className="w-10 px-1" />
+                            </div>
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor="fighter-b-name">Fighter B</FieldLabel>
+                            <div className="flex gap-2">
+                              <Input id="fighter-b-name" value={fighterBName} onChange={(event) => setFighterBName(event.target.value)} />
+                              <Input aria-label="Fighter B color" type="color" value={fighterBColor} onChange={(event) => setFighterBColor(event.target.value)} className="w-10 px-1" />
+                            </div>
+                          </Field>
+                        </div>
+
+                        <Field>
+                          <div className="flex items-center justify-between">
+                            <FieldLabel>Duration</FieldLabel>
+                            <span className="text-muted-foreground">{combatDuration}s</span>
+                          </div>
+                          <Slider min={10} max={30} step={1} value={[combatDuration]} onValueChange={(value) => setCombatDuration(value[0] ?? 20)} />
+                        </Field>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field>
+                            <FieldLabel>Intensity</FieldLabel>
+                            <Select value={combatIntensity} onValueChange={(value) => setCombatIntensity(value as typeof combatIntensity)}>
+                              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectGroup>
+                                <SelectItem value="grounded">Grounded</SelectItem>
+                                <SelectItem value="cinematic">Cinematic</SelectItem>
+                                <SelectItem value="extreme">Extreme</SelectItem>
+                              </SelectGroup></SelectContent>
+                            </Select>
+                          </Field>
+                          <Field>
+                            <FieldLabel>Winner</FieldLabel>
+                            <Select value={combatWinner} onValueChange={(value) => setCombatWinner(value as typeof combatWinner)}>
+                              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectGroup>
+                                <SelectItem value="auto">AI chooses</SelectItem>
+                                <SelectItem value="fighterA">{fighterAName || "Fighter A"}</SelectItem>
+                                <SelectItem value="fighterB">{fighterBName || "Fighter B"}</SelectItem>
+                                <SelectItem value="draw">Draw</SelectItem>
+                              </SelectGroup></SelectContent>
+                            </Select>
+                          </Field>
+                        </div>
+
+                        <Field>
+                          <FieldLabel htmlFor="combat-seed">Seed</FieldLabel>
+                          <Input id="combat-seed" type="number" min={0} value={combatSeed} onChange={(event) => setCombatSeed(Number(event.target.value) || 0)} />
+                        </Field>
+                      </FieldGroup>
+
+                      <Button onClick={handleGenerateCombat} disabled={aiGenerating} className="w-full">
+                        {aiGenerating ? <IconRefresh data-icon="inline-start" className="animate-spin" /> : <IconSparkles data-icon="inline-start" />}
+                        {aiGenerating ? "Building Fight..." : "Generate Combat Scene"}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* STEP 1: SCRIPT ENHANCER */}
-                  <div className="flex flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20">
+                  <div className={`${aiMode === "teaching" ? "flex" : "hidden"} flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20`}>
                     <div className="flex items-center gap-1.5">
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
                         1
@@ -1695,7 +1827,7 @@ export default function EditorPage() {
                   </div>
 
                   {/* STEP 2: STORYBOARD & LAYER COMPILES */}
-                  <div className="flex flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20">
+                  <div className={`${aiMode === "teaching" ? "flex" : "hidden"} flex-col gap-3 bg-muted/10 p-3.5 rounded-xl border border-border/20`}>
                     <div className="flex items-center gap-1.5">
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
                         2
@@ -1732,7 +1864,7 @@ export default function EditorPage() {
                     </Button>
                   </div>
 
-                  <p className="text-[9px] text-muted-foreground/75 leading-relaxed bg-muted/25 p-2.5 rounded border border-border/10 select-none">
+                  <p className={`${aiMode === "teaching" ? "block" : "hidden"} text-[9px] text-muted-foreground/75 leading-relaxed bg-muted/25 p-2.5 rounded border border-border/10 select-none`}>
                     Tip: Step 1 turns a short teaching prompt into a timed storyboard. Step 2 builds presenter rigs, labels, boxes, arrows, mouth motion, and optional narration.
                   </p>
                 </div>
@@ -1786,7 +1918,7 @@ export default function EditorPage() {
                       </div>
                       <div className="flex justify-between py-1.5 border-b border-border/30 text-muted-foreground">
                         <span>Frame Rate</span>
-                        <span className="font-extrabold text-foreground">30 FPS (Constant)</span>
+                        <span className="font-extrabold text-foreground">{document.timeline?.fps ?? 30} FPS (Timeline)</span>
                       </div>
                       <div className="flex justify-between py-1.5 text-muted-foreground">
                         <span>Processing</span>

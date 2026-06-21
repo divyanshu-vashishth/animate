@@ -1,11 +1,17 @@
 import {
   RIG_VIEWBOX,
+  COMBAT_FOOT_LENGTH,
+  COMBAT_HAND_RADIUS,
+  COMBAT_HEAD_RADIUS_SCALE,
+  createCombatLimbPrimitive,
   getRigPose,
+  isCombatRig,
   resolveRigGeometry,
   type FaceState,
   type MouthShape,
   type RigBoneId,
   type ShapeKind,
+  type EffectEntityData,
 } from "@stickman/shared";
 
 type BoneOverrides = Partial<Record<RigBoneId, number>>;
@@ -23,6 +29,7 @@ export interface DrawRigOptions {
   mouth?: MouthShape;
   boneRotations?: BoneOverrides;
   strokeColor?: string;
+  rigId?: string;
 }
 
 export interface DrawShapeOptions {
@@ -57,6 +64,11 @@ export function drawRigToCanvas(ctx: CanvasRenderingContext2D, options: DrawRigO
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = strokeColor;
+  if (isCombatRig(options.rigId, pose.id)) {
+    drawCombatBody(ctx, geometry, strokeColor);
+    ctx.restore();
+    return;
+  }
   for (const segment of geometry.segments) {
     if (segment.boneId === "head") continue;
     ctx.lineWidth = segment.strokeWidth;
@@ -71,6 +83,103 @@ export function drawRigToCanvas(ctx: CanvasRenderingContext2D, options: DrawRigO
   ctx.arc(geometry.headCenter.x, geometry.headCenter.y, geometry.headRadius, 0, Math.PI * 2);
   ctx.stroke();
   drawRigFace(ctx, geometry.headCenter.x, geometry.headCenter.y, options.face ?? pose.face ?? "neutral", options.mouth ?? pose.mouth ?? "closed", strokeColor);
+  ctx.restore();
+}
+
+function drawCombatBody(ctx: CanvasRenderingContext2D, geometry: ReturnType<typeof resolveRigGeometry>, color: string): void {
+  const segments = new Map(geometry.segments.map((segment) => [segment.boneId, segment]));
+  const drawOrder: RigBoneId[] = ["thighL", "calfL", "upperArmL", "forearmL", "torso", "thighR", "calfR", "upperArmR", "forearmR"];
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  for (const boneId of drawOrder) {
+    const segment = segments.get(boneId);
+    if (!segment) continue;
+    const limb = createCombatLimbPrimitive(segment);
+    const [a, b, c, d] = limb.polygon;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.lineTo(d.x, d.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(segment.start.x, segment.start.y, limb.startRadius, 0, Math.PI * 2);
+    ctx.arc(segment.end.x, segment.end.y, limb.endRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const boneId of ["forearmL", "forearmR"] as RigBoneId[]) {
+    const hand = segments.get(boneId)?.end;
+    if (!hand) continue;
+    ctx.beginPath();
+    ctx.arc(hand.x, hand.y, COMBAT_HAND_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = 8;
+  for (const boneId of ["calfL", "calfR"] as RigBoneId[]) {
+    const foot = segments.get(boneId)?.end;
+    if (!foot) continue;
+    ctx.beginPath();
+    ctx.moveTo(foot.x - 2, foot.y);
+    ctx.lineTo(foot.x + COMBAT_FOOT_LENGTH, foot.y);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(geometry.headCenter.x, geometry.headCenter.y, geometry.headRadius * COMBAT_HEAD_RADIUS_SCALE, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+export function drawEffectToCanvas(ctx: CanvasRenderingContext2D, entity: EffectEntityData, time: number): void {
+  const span = Math.max(0.001, entity.endTime - entity.startTime);
+  const progress = Math.max(0, Math.min(1, (time - entity.startTime) / span));
+  const opacity = (entity.opacity ?? 1) * Math.sin(Math.PI * Math.min(1, progress + 0.05));
+  const color = entity.color ?? "#FFFFFF";
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = "round";
+  if (entity.effect === "screenFlash") {
+    ctx.fillRect(0, 0, 640, 360);
+  } else if (entity.effect === "speedTrail") {
+    ctx.translate(entity.transform.x - entity.width / 2, entity.transform.y - entity.height / 2);
+    for (let index = 0; index < 5; index++) {
+      const y = 12 + index * 12;
+      ctx.globalAlpha = opacity * (0.92 - index * 0.12);
+      ctx.lineWidth = 8 - index;
+      ctx.beginPath();
+      ctx.moveTo(6 + index * 5, y);
+      ctx.lineTo(entity.width - 5 - index * 9, y - 3);
+      ctx.stroke();
+    }
+  } else if (entity.effect === "afterimage") {
+    drawRigToCanvas(ctx, { x: entity.transform.x, y: entity.transform.y, rotation: entity.transform.rotation,
+      scaleX: entity.transform.scaleX, scaleY: entity.transform.scaleY, width: entity.width, height: entity.height,
+      pose: "combat_crouch", rigId: "combat-vector-v2", strokeColor: color });
+  } else if (entity.effect === "dust") {
+    ctx.translate(entity.transform.x, entity.transform.y);
+    for (const [x, y, rx, ry, alpha] of [[-15, -3, 14, 5, 0.55], [2, -7, 12, 6, 0.42], [18, -3, 9, 4, 0.32]] as const) {
+      ctx.globalAlpha = opacity * alpha;
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx * (0.8 + progress * 0.4), ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    ctx.translate(entity.transform.x, entity.transform.y);
+    ctx.lineWidth = 5;
+    for (let angle = 0; angle < 360; angle += 30) {
+      ctx.save();
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(28 + progress * 16, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, 8 + progress * 14, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 

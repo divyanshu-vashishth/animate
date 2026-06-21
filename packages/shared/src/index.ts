@@ -4,6 +4,7 @@ export * from "./types/timeline.js";
 export * from "./types/commands.js";
 export * from "./types/sprites.js";
 export * from "./types/rig.js";
+export * from "./types/combat-rig.js";
 export * from "./types/shapes.js";
 import spriteManifestJson from "./sprite-manifest.json" with { type: "json" };
 export const spriteManifest = spriteManifestJson;

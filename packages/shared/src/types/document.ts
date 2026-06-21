@@ -49,6 +49,30 @@ export interface RigEntityData {
   height?: number;
   startTime?: number;
   endTime?: number;
+  style?: {
+    strokeColor?: string;
+    strokeWidth?: number;
+    opacity?: number;
+  };
+}
+
+export type EffectKind = "speedTrail" | "afterimage" | "impactBurst" | "dust" | "screenFlash";
+
+export interface EffectEntityData {
+  id: EntityId;
+  type: "effect";
+  name: string;
+  layerId: LayerId;
+  effect: EffectKind;
+  transform: TransformData;
+  width: number;
+  height: number;
+  color?: string;
+  opacity?: number;
+  intensity?: number;
+  sourceEntityId?: EntityId;
+  startTime: number;
+  endTime: number;
 }
 
 export interface TextEntityData {
@@ -100,7 +124,8 @@ export type EntityData =
   | RigEntityData
   | TextEntityData
   | ImageEntityData
-  | ShapeEntityData;
+  | ShapeEntityData
+  | EffectEntityData;
 
 export interface StageData {
   width: number;
@@ -116,6 +141,10 @@ export interface AudioTrackData {
   startTime: number; // playhead offset in seconds
   duration: number; // in seconds
   audioStartOffset?: number; // offset within the original audio file in seconds
+  category?: "music" | "sfx" | "voice";
+  pan?: number;
+  fadeIn?: number;
+  fadeOut?: number;
 }
 
 export interface VoiceTrackData {
@@ -129,16 +158,54 @@ export interface VoiceTrackData {
   volume: number; // 0 to 1
   startTime: number; // playhead offset in seconds
   duration: number; // in seconds
+  speakerId?: string;
+  renderedAudioUrl?: string;
+  renderedMimeType?: string;
+  generationStatus?: "pending" | "ready" | "failed";
+}
+
+export interface CombatProjectMetadata {
+  sourcePrompt: string;
+  seed: number;
+  duration: number;
+  intensity: "grounded" | "cinematic" | "extreme";
+  winner: "fighterA" | "fighterB" | "draw" | "auto";
+  moveCallouts: boolean;
+  plan: unknown;
+  contacts?: Array<{
+    beatId: string;
+    time: number;
+    actorId: "fighterA" | "fighterB";
+    targetId: "fighterA" | "fighterB";
+    x: number;
+    y: number;
+    strikeBone: "forearmR" | "calfR";
+  }>;
 }
 
 export interface ProjectDocument {
   version: number;
+  sceneMode?: "teaching" | "combat";
   stage: StageData;
   layers: LayerData[];
   entities: EntityData[];
   timeline?: import("./timeline.js").TimelineData;
   audioTracks?: AudioTrackData[];
   voiceTracks?: VoiceTrackData[];
+  combat?: CombatProjectMetadata;
+}
+
+export function normalizeProjectDocument(document: ProjectDocument): ProjectDocument {
+  return {
+    ...document,
+    version: 2,
+    sceneMode: document.sceneMode ?? "teaching",
+    timeline: document.timeline
+      ? { ...document.timeline, fps: document.timeline.fps || (document.sceneMode === "combat" ? 24 : 60) }
+      : document.timeline,
+    audioTracks: document.audioTracks ?? [],
+    voiceTracks: document.voiceTracks ?? [],
+  };
 }
 
 export function createDefaultDocument(preset: "16:9" | "9:16" | "1:1" | "4:3" = "16:9"): ProjectDocument {
@@ -159,7 +226,8 @@ export function createDefaultDocument(preset: "16:9" | "9:16" | "1:1" | "4:3" = 
   }
 
   return {
-    version: 1,
+    version: 2,
+    sceneMode: "teaching",
     stage: { width, height, backgroundColor: "#FFFFFF" },
     layers: [
       { id: bgLayerId, name: "Background", order: 0, visible: true, locked: false },

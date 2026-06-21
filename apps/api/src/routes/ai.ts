@@ -2,6 +2,10 @@ import { Hono } from "hono";
 import {
   SAMPLE_ANIMATION_SCRIPT,
   animationScriptSchema,
+  combatGenerationRequestSchema,
+  combatPlanSchema,
+  compileCombatPlan,
+  createFallbackCombatPlan,
   compileAnimationScript,
 } from "@stickman/ai";
 import { TEACHING_RIG_ACTIONS, TEACHING_SHAPE_PRESETS } from "@stickman/shared";
@@ -66,6 +70,53 @@ async function callGemini(prompt: string, jsonMode = false): Promise<string> {
   return content;
 }
 
+function pcmBase64ToWavDataUrl(pcmBase64: string, sampleRate = 24000): string {
+  const pcm = Uint8Array.from(atob(pcmBase64), (char) => char.charCodeAt(0));
+  const wav = new Uint8Array(44 + pcm.length);
+  const view = new DataView(wav.buffer);
+  const write = (offset: number, value: string) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+  write(0, "RIFF");
+  view.setUint32(4, 36 + pcm.length, true);
+  write(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, pcm.length, true);
+  wav.set(pcm, 44);
+  let binary = "";
+  for (const byte of wav) binary += String.fromCharCode(byte);
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
+
+async function callGeminiTts(text: string, speakerId: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY environment variable is not defined");
+  const model = process.env.GEMINI_TTS_MODEL ?? "gemini-2.5-flash-preview-tts";
+  const voiceName = speakerId === "fighterA" ? "Charon" : "Puck";
+  const style = speakerId === "fighterA" ? "a deep, forceful martial-arts fighter" : "a sharp, fast, confident fighter";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `Say only this move name as ${style}. No introduction: ${text}` }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+      },
+    }),
+  });
+  if (!response.ok) throw new Error(`Gemini TTS returned ${response.status}`);
+  const data = await response.json() as any;
+  const inlineData = data?.candidates?.[0]?.content?.parts?.find((part: any) => part.inlineData)?.inlineData;
+  if (!inlineData?.data) throw new Error("Gemini TTS returned no audio");
+  return pcmBase64ToWavDataUrl(inlineData.data);
+}
+
 aiRoutes.post("/generate", async (c) => {
   if (!getAuthUser(c)) return c.json({ error: "Unauthorized" }, 401);
   const body = await c.req.json<{ prompt: string; entityId?: string }>();
@@ -86,6 +137,40 @@ aiRoutes.post("/generate", async (c) => {
     timeline: compiled.timeline,
     entityId,
   });
+});
+
+aiRoutes.post("/generate-combat", async (c) => {
+  if (!getAuthUser(c)) return c.json({ error: "Unauthorized" }, 401);
+  const parsedRequest = combatGenerationRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsedRequest.success) return c.json({ error: "Invalid combat request", details: parsedRequest.error.flatten() }, 400);
+
+  const request = parsedRequest.data;
+  const warnings: string[] = [];
+  let plan = createFallbackCombatPlan(request);
+  try {
+    const prompt = `You are planning a clean vector stick-figure duel. Return only JSON.
+Duration: ${request.duration}s. Intensity: ${request.intensity}. Requested winner: ${request.winner}.
+Fighters: ${request.fighters[0].id} (${request.fighters[0].name}) and ${request.fighters[1].id} (${request.fighters[1].name}).
+Story request: ${request.prompt}
+
+Use 4-12 sequential beats and this exact shape:
+{"version":1,"duration":${request.duration},"beats":[{"id":"beat-1","start":4,"duration":1.4,"actorId":"fighterA","targetId":"fighterB","move":"heavyPunch","outcome":"hit","strength":0.8}]}
+Allowed moves: dash, lightPunch, heavyPunch, kick, sweep, dodge, block, throw, launch, airAttack, counter, barrage, knockdown, recover, finisher.
+Allowed outcomes: hit, block, dodge, miss. actorId and targetId must differ. Keep beats sequential and inside the duration. Leave the first 18% for entrance and the last 12% for the finish. Alternate initiative, pair attacks with believable defensive reactions, escalate from simple strikes to throws or launches, and end with the requested winner landing the finisher. Do not include callouts, dialogue, narration, or move names.`;
+    const raw = await callGemini(prompt, true);
+    const candidate = combatPlanSchema.safeParse(JSON.parse(cleanGeminiJsonResponse(raw)));
+    if (!candidate.success) throw new Error("Gemini returned an invalid combat plan");
+    const usableBeats = candidate.data.beats.filter((beat) => beat.actorId !== beat.targetId && beat.start + beat.duration <= request.duration);
+    const validated = combatPlanSchema.safeParse({ ...candidate.data, duration: request.duration, beats: usableBeats });
+    if (!validated.success) throw new Error("Gemini combat timing was invalid");
+    plan = validated.data;
+  } catch (error) {
+    console.warn("Combat planner fallback:", error);
+    warnings.push("AI choreography was unavailable; a deterministic seeded fight plan was used.");
+  }
+
+  const document = compileCombatPlan(request, plan);
+  return c.json({ plan, document, warnings });
 });
 
 // Step 1: Enhance prompt using Gemini

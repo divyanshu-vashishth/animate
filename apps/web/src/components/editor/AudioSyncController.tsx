@@ -41,7 +41,13 @@ export function AudioSyncController() {
   useEffect(() => {
     if (!document) return;
 
-    const tracks = document.audioTracks || [];
+    const tracks = [
+      ...(document.audioTracks || []),
+      ...(document.voiceTracks || []).filter((track) => track.renderedAudioUrl).map((track) => ({
+        id: `voice:${track.id}`, url: track.renderedAudioUrl!, volume: track.volume, startTime: track.startTime, duration: track.duration,
+        audioStartOffset: 0,
+      })),
+    ];
 
     // Create or update audio elements for current tracks
     const activeIds = new Set<string>();
@@ -72,12 +78,18 @@ export function AudioSyncController() {
       }
     });
 
-  }, [document?.audioTracks]);
+  }, [document?.audioTracks, document?.voiceTracks]);
 
   // Handle Play/Pause/Stop and Playhead Scrub sync
   useEffect(() => {
     if (!document) return;
-    const tracks = document.audioTracks || [];
+    const tracks = [
+      ...(document.audioTracks || []),
+      ...(document.voiceTracks || []).filter((track) => track.renderedAudioUrl).map((track) => ({
+        id: `voice:${track.id}`, url: track.renderedAudioUrl!, volume: track.volume, startTime: track.startTime, duration: track.duration,
+        audioStartOffset: 0,
+      })),
+    ];
 
     tracks.forEach((track) => {
       const audio = audioElementsRef.current[track.id];
@@ -116,7 +128,7 @@ export function AudioSyncController() {
         }
       }
     });
-  }, [playbackState, timelineTime, document?.audioTracks]);
+  }, [playbackState, timelineTime, document?.audioTracks, document?.voiceTracks]);
 
   // Handle timeline-synced narration tracks with the browser speech engine.
   useEffect(() => {
@@ -124,7 +136,7 @@ export function AudioSyncController() {
 
     const synth = window.speechSynthesis;
     const tracks = [...(document.voiceTracks || [])]
-      .filter((track) => track.text.trim().length > 0)
+      .filter((track) => track.text.trim().length > 0 && !track.renderedAudioUrl)
       .sort((a, b) => (a.startTime ?? 0) - (b.startTime ?? 0));
 
     const resetReplayState = playbackState === "stopped" || timelineTime < previousTimelineTimeRef.current - 0.2;

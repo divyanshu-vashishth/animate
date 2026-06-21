@@ -5,17 +5,23 @@ import {
   RIG_BONE_BY_ID,
   RIG_BONE_IDS,
   RIG_VIEWBOX,
+  COMBAT_FOOT_LENGTH,
+  COMBAT_HAND_RADIUS,
+  COMBAT_HEAD_RADIUS_SCALE,
+  createCombatLimbPrimitive,
   getRigPose,
+  isCombatRig,
   normalizeAngle,
   resolveRigGeometry,
   type FaceState,
   type MouthShape,
   type RigBoneId,
   type RigEntityData,
+  type ProjectDocument,
 } from "@stickman/shared";
 
 type EvaluateProperty = (
-  document: unknown,
+  document: Pick<ProjectDocument, "timeline"> | null | undefined,
   entityId: string,
   property: string,
   time: number,
@@ -24,7 +30,7 @@ type EvaluateProperty = (
 
 interface RigEntityViewProps {
   entity: RigEntityData;
-  document: unknown;
+  document: ProjectDocument | null;
   timelineTime: number;
   isSelected: boolean;
   isDraggingThis: boolean;
@@ -73,6 +79,7 @@ export function RigEntityView({
   }, [document, entity.boneRotations, entity.id, evaluateProperty, timelineTime]);
 
   const geometry = useMemo(() => resolveRigGeometry(pose, boneRotations), [pose, boneRotations]);
+  const combatBody = isCombatRig(entity.rigId, pose);
 
   const pointerToSvgPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -108,6 +115,7 @@ export function RigEntityView({
         width: `${width}px`,
         height: `${height}px`,
         transform: `translate(-50%, -100%) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`,
+        opacity: entity.style?.opacity ?? 1,
       }}
       className={`cursor-grab active:cursor-grabbing transition-shadow ${
         isSelected
@@ -123,23 +131,27 @@ export function RigEntityView({
         onPointerUp={() => setDraggingBone(null)}
         onPointerLeave={() => setDraggingBone(null)}
       >
-        <g fill="none" stroke="#111827" strokeLinecap="round" strokeLinejoin="round">
-          {geometry.segments.map((segment) => {
-            if (segment.boneId === "head") return null;
-            return (
-              <line
-                key={segment.boneId}
-                x1={segment.start.x}
-                y1={segment.start.y}
-                x2={segment.end.x}
-                y2={segment.end.y}
-                strokeWidth={segment.strokeWidth}
-              />
-            );
-          })}
-          <circle cx={geometry.headCenter.x} cy={geometry.headCenter.y} r={geometry.headRadius} strokeWidth={4} />
-          <FaceMarks cx={geometry.headCenter.x} cy={geometry.headCenter.y} face={face} mouth={mouth} />
-        </g>
+        {combatBody ? (
+          <CombatBody geometry={geometry} color={entity.style?.strokeColor ?? "#111827"} />
+        ) : (
+          <g fill="none" stroke={entity.style?.strokeColor ?? "#111827"} strokeLinecap="round" strokeLinejoin="round">
+            {geometry.segments.map((segment) => {
+              if (segment.boneId === "head") return null;
+              return (
+                <line
+                  key={segment.boneId}
+                  x1={segment.start.x}
+                  y1={segment.start.y}
+                  x2={segment.end.x}
+                  y2={segment.end.y}
+                  strokeWidth={segment.strokeWidth * (entity.style?.strokeWidth ?? 1)}
+                />
+              );
+            })}
+            <circle cx={geometry.headCenter.x} cy={geometry.headCenter.y} r={geometry.headRadius} strokeWidth={4 * (entity.style?.strokeWidth ?? 1)} />
+            <FaceMarks cx={geometry.headCenter.x} cy={geometry.headCenter.y} face={face} mouth={mouth} color={entity.style?.strokeColor ?? "#111827"} />
+          </g>
+        )}
 
         {isSelected && (
           <g>
@@ -167,7 +179,42 @@ export function RigEntityView({
   );
 }
 
-function FaceMarks({ cx, cy, face, mouth }: { cx: number; cy: number; face: FaceState; mouth: MouthShape }) {
+const COMBAT_DRAW_ORDER: RigBoneId[] = [
+  "thighL", "calfL", "upperArmL", "forearmL", "torso",
+  "thighR", "calfR", "upperArmR", "forearmR",
+];
+
+function CombatBody({ geometry, color }: { geometry: ReturnType<typeof resolveRigGeometry>; color: string }) {
+  const segments = new Map(geometry.segments.map((segment) => [segment.boneId, segment]));
+  return (
+    <g fill={color} stroke={color} strokeLinecap="round" strokeLinejoin="round">
+      {COMBAT_DRAW_ORDER.map((boneId) => {
+        const segment = segments.get(boneId);
+        if (!segment) return null;
+        const limb = createCombatLimbPrimitive(segment);
+        const [a, b, c, d] = limb.polygon;
+        return (
+          <g key={boneId}>
+            <path d={`M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} L ${d.x} ${d.y} Z`} stroke="none" />
+            <circle cx={segment.start.x} cy={segment.start.y} r={limb.startRadius} stroke="none" />
+            <circle cx={segment.end.x} cy={segment.end.y} r={limb.endRadius} stroke="none" />
+          </g>
+        );
+      })}
+      {(["forearmL", "forearmR"] as RigBoneId[]).map((boneId) => {
+        const hand = segments.get(boneId)?.end;
+        return hand ? <circle key={`hand-${boneId}`} cx={hand.x} cy={hand.y} r={COMBAT_HAND_RADIUS} stroke="none" /> : null;
+      })}
+      {(["calfL", "calfR"] as RigBoneId[]).map((boneId) => {
+        const foot = segments.get(boneId)?.end;
+        return foot ? <line key={`foot-${boneId}`} x1={foot.x - 2} y1={foot.y} x2={foot.x + COMBAT_FOOT_LENGTH} y2={foot.y} strokeWidth={8} /> : null;
+      })}
+      <circle cx={geometry.headCenter.x} cy={geometry.headCenter.y} r={geometry.headRadius * COMBAT_HEAD_RADIUS_SCALE} stroke="none" />
+    </g>
+  );
+}
+
+function FaceMarks({ cx, cy, face, mouth, color }: { cx: number; cy: number; face: FaceState; mouth: MouthShape; color: string }) {
   const eyeY = cy - 3;
   const mouthY = cy + 6;
   const eyebrow =
@@ -189,8 +236,8 @@ function FaceMarks({ cx, cy, face, mouth }: { cx: number; cy: number; face: Face
 
   return (
     <>
-      <circle cx={cx - 5} cy={eyeY} r={1.6} fill="#111827" stroke="none" />
-      <circle cx={cx + 5} cy={eyeY} r={1.6} fill="#111827" stroke="none" />
+      <circle cx={cx - 5} cy={eyeY} r={1.6} fill={color} stroke="none" />
+      <circle cx={cx + 5} cy={eyeY} r={1.6} fill={color} stroke="none" />
       {eyebrow}
       {mouth === "oShape" ? (
         <ellipse cx={cx} cy={mouthY} rx={3} ry={4} strokeWidth={2} />

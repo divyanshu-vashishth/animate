@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && node --test combat.test.mjs"
   },
   "dependencies": {
     "@stickman/shared": "workspace:*",

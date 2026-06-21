@@ -20,14 +20,26 @@ async function proxyRequest(
   headers.delete("host");
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const upstream = await fetch(target, {
-    method: req.method,
-    headers,
-    body: hasBody ? req.body : undefined,
-  // @ts-expect-error duplex required when streaming request body to upstream
-    duplex: hasBody ? "half" : undefined,
-    cache: "no-store",
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: req.method,
+      headers,
+      body: hasBody ? req.body : undefined,
+      // @ts-expect-error duplex required when streaming request body to upstream
+      duplex: hasBody ? "half" : undefined,
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error(`API proxy could not reach ${API_ORIGIN}`, error);
+    return NextResponse.json(
+      {
+        error: "API service unavailable",
+        detail: `Could not connect to ${API_ORIGIN}. Start the API service and retry.`,
+      },
+      { status: 503 }
+    );
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete("content-encoding");

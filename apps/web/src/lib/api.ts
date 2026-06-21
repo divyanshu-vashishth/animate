@@ -69,6 +69,19 @@ export const api = {
       body: JSON.stringify({ enhancedPrompt, availableSprites, customUploads, width, height }),
     }),
 
+  generateCombat: (request: {
+    prompt: string;
+    duration: number;
+    intensity: "grounded" | "cinematic" | "extreme";
+    winner: "fighterA" | "fighterB" | "draw" | "auto";
+    moveCallouts: boolean;
+    seed: number;
+    fighters: [{ id: "fighterA"; name: string; color: string }, { id: "fighterB"; name: string; color: string }];
+  }) => fetchApi<{ plan: unknown; document: ProjectDocument; warnings: string[] }>("/ai/generate-combat", {
+    method: "POST",
+    body: JSON.stringify(request),
+  }),
+
   createRenderJob: (projectId: string, format: "mp4" | "gif" | "webm") =>
     fetchApi<{ job: { id: string; status: string } }>("/render/jobs", {
       method: "POST",
@@ -80,7 +93,13 @@ export const api = {
       `/render/jobs/${jobId}`
     ),
 
-  renderDirect: async (projectId: string, format: "mp4" | "gif" | "webm", frames: string[], fps?: number): Promise<Blob> => {
+  renderDirect: async (
+    projectId: string,
+    format: "mp4" | "gif" | "webm",
+    frames: string[],
+    fps?: number,
+    audioClips: Array<{ id: string; dataUrl: string; startTime: number; duration: number; sourceOffset?: number; volume: number; pan?: number; fadeIn?: number; fadeOut?: number }> = []
+  ): Promise<Blob> => {
     // 1. Retrieve the container's public URL from Hono
     const configRes = await fetch(`${API_URL}/render/config`);
     if (!configRes.ok) {
@@ -99,7 +118,7 @@ export const api = {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ jobId, format, frames, fps }),
+      body: JSON.stringify({ jobId, format, frames, fps, audioClips }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));

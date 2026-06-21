@@ -8,6 +8,8 @@ dist
 .env.sentry-build-plugin
 .DS_Store
 coverage
+apps/renderer/output/
+.tmp/
 .cursor
 .antigravity
 .agents

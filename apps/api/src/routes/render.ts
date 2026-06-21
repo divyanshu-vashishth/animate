@@ -21,6 +21,17 @@ renderRoutes.post("/jobs/direct", async (c) => {
     format: "mp4" | "gif" | "webm";
     frames: string[];
     fps?: number;
+    audioClips?: Array<{
+      id: string;
+      dataUrl: string;
+      startTime: number;
+      duration: number;
+      sourceOffset?: number;
+      volume: number;
+      pan?: number;
+      fadeIn?: number;
+      fadeOut?: number;
+    }>;
   }>();
 
   const db = getDb();
@@ -42,6 +53,7 @@ renderRoutes.post("/jobs/direct", async (c) => {
         format: body.format,
         frames: body.frames,
         fps: body.fps,
+        audioClips: body.audioClips,
       }),
     });
 

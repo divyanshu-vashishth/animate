@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import type { ProjectDocument } from "@stickman/shared";
-import { createDefaultDocument } from "@stickman/shared";
+import { createDefaultDocument, normalizeProjectDocument } from "@stickman/shared";
 import { getDb, projects, projectDocuments } from "@stickman/database";
 import { getAuthUser } from "../middleware/session.js";
 
@@ -84,7 +84,7 @@ projectRoutes.get("/:id/document", async (c) => {
     .select()
     .from(projectDocuments)
     .where(eq(projectDocuments.projectId, projectId));
-  return c.json({ document: doc?.data ?? createDefaultDocument() });
+  return c.json({ document: normalizeProjectDocument((doc?.data as ProjectDocument | undefined) ?? createDefaultDocument()) });
 });
 
 projectRoutes.put("/:id/document", async (c) => {
@@ -100,7 +100,7 @@ projectRoutes.put("/:id/document", async (c) => {
   const body = await c.req.json<{ document: ProjectDocument }>();
   await db
     .update(projectDocuments)
-    .set({ data: body.document, updatedAt: new Date() })
+    .set({ data: normalizeProjectDocument(body.document), updatedAt: new Date() })
     .where(eq(projectDocuments.projectId, projectId));
   await db
     .update(projects)

@@ -1,5 +1,6 @@
 export * from "./schema.js";
 export * from "./compile.js";
+export * from "./combat.js";
 
 export const SAMPLE_ANIMATION_SCRIPT = {
   character: "fighter",
