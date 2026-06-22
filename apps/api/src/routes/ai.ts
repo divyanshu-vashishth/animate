@@ -153,10 +153,10 @@ Duration: ${request.duration}s. Intensity: ${request.intensity}. Requested winne
 Fighters: ${request.fighters[0].id} (${request.fighters[0].name}) and ${request.fighters[1].id} (${request.fighters[1].name}).
 Story request: ${request.prompt}
 
-Use 4-12 sequential beats and this exact shape:
+Use 7-16 sequential beats and this exact shape:
 {"version":1,"duration":${request.duration},"beats":[{"id":"beat-1","start":4,"duration":1.4,"actorId":"fighterA","targetId":"fighterB","move":"heavyPunch","outcome":"hit","strength":0.8}]}
 Allowed moves: dash, lightPunch, heavyPunch, kick, sweep, dodge, block, throw, launch, airAttack, counter, barrage, knockdown, recover, finisher.
-Allowed outcomes: hit, block, dodge, miss. actorId and targetId must differ. Keep beats sequential and inside the duration. Leave the first 18% for entrance and the last 12% for the finish. Alternate initiative, pair attacks with believable defensive reactions, escalate from simple strikes to throws or launches, and end with the requested winner landing the finisher. Do not include callouts, dialogue, narration, or move names.`;
+Allowed outcomes: hit, block, dodge, miss. actorId and targetId must differ. Keep beats sequential and inside the duration. Leave the first 18% for entrance and the last 10% for the finish. Alternate initiative and build short, readable combinations: simple strike, response, counter, then escalation. A fighter who is thrown, launched, swept, or knocked down must receive recovery time before attacking again. Never schedule two unrelated attacks at the same time, a standing attack from a fallen fighter, or repeated kicks/punches with no defensive response. End with the requested winner landing the finisher. Do not include callouts, dialogue, narration, or move names.`;
     const raw = await callGemini(prompt, true);
     const candidate = combatPlanSchema.safeParse(JSON.parse(cleanGeminiJsonResponse(raw)));
     if (!candidate.success) throw new Error("Gemini returned an invalid combat plan");

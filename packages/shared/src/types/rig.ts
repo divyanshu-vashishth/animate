@@ -289,60 +289,108 @@ export const TEACHING_RIG_POSES: Record<string, RigPose> = {
     upperArmL: 0.52,
   }, "neutral", "closed", "compat"),
   combat_guard: pose("combat_guard", "Combat Guard", {
-    torso: 0.1, upperArmL: -0.2, forearmL: -2.82, upperArmR: -0.16, forearmR: -2.12,
-    thighL: 0.1, calfL: -0.18, thighR: 0.08, calfR: 0.14,
+    torso: 0.08, head: -0.04, upperArmL: -0.34, forearmL: -2.66, upperArmR: -0.3, forearmR: -2.22,
+    thighL: 0.18, calfL: -0.22, thighR: -0.06, calfR: 0.18,
+  }, "warning", "closed", "combat"),
+  combat_ready: pose("combat_ready", "Balanced Fighting Stance", {
+    torso: 0.16, head: -0.08, upperArmL: -0.42, forearmL: -2.58, upperArmR: -0.38, forearmR: -2.16,
+    thighL: 0.28, calfL: -0.28, thighR: -0.18, calfR: 0.24,
+  }, "warning", "closed", "combat"),
+  combat_dash_coil: pose("combat_dash_coil", "Dash Coil", {
+    torso: 0.48, head: -0.16, upperArmL: 0.18, forearmL: -2.24, upperArmR: -0.74, forearmR: -1.92,
+    thighL: -0.34, calfL: 0.42, thighR: 0.42, calfR: -0.38,
+  }, "warning", "closed", "combat"),
+  combat_dash_drive: pose("combat_dash_drive", "Dash Drive", {
+    torso: 0.58, head: -0.2, upperArmL: -0.82, forearmL: -2.06, upperArmR: 0.16, forearmR: -2.42,
+    thighL: 0.48, calfL: -0.44, thighR: -0.72, calfR: 0.68,
   }, "warning", "closed", "combat"),
   combat_crouch: pose("combat_crouch", "Combat Crouch", {
     torso: 0.36, upperArmL: -0.28, forearmL: -2.72, upperArmR: -0.28, forearmR: -2.2,
     thighL: -0.48, calfL: 0.48, thighR: 0.5, calfR: -0.5,
   }, "warning", "closed", "combat"),
   combat_jab_windup: pose("combat_jab_windup", "Jab Windup", {
-    torso: -0.08, upperArmL: -0.16, forearmL: -2.72, upperArmR: 0.12, forearmR: -2.48,
-    thighL: 0.06, calfL: -0.14, thighR: 0.12, calfR: 0.1,
+    torso: -0.12, head: 0.06, upperArmL: -0.42, forearmL: -2.58, upperArmR: 0.06, forearmR: -2.5,
+    thighL: 0.26, calfL: -0.26, thighR: -0.14, calfR: 0.22,
+  }, "warning", "closed", "combat"),
+  combat_jab_drive: pose("combat_jab_drive", "Jab Shoulder Drive", {
+    torso: 0.12, head: -0.08, upperArmL: -0.5, forearmL: -2.54, upperArmR: -0.62, forearmR: -1.82,
+    thighL: 0.34, calfL: -0.34, thighR: -0.28, calfR: 0.3,
   }, "warning", "closed", "combat"),
   combat_jab_contact: pose("combat_jab_contact", "Jab Contact", {
-    torso: 0.2, upperArmL: -0.28, forearmL: -2.72, upperArmR: -1.04, forearmR: -1.42,
-    thighL: 0.08, calfL: -0.18, thighR: 0.02, calfR: 0.12,
+    torso: 0.3, head: -0.14, upperArmL: -0.48, forearmL: -2.58, upperArmR: -1.02, forearmR: -1.42,
+    thighL: 0.38, calfL: -0.36, thighR: -0.32, calfR: 0.34,
+  }, "warning", "closed", "combat"),
+  combat_jab_recoil: pose("combat_jab_recoil", "Jab Recoil", {
+    torso: 0.24, head: -0.1, upperArmL: -0.46, forearmL: -2.6, upperArmR: -0.82, forearmR: -1.58,
+    thighL: 0.36, calfL: -0.34, thighR: -0.28, calfR: 0.32,
   }, "warning", "closed", "combat"),
   combat_jab_retract: pose("combat_jab_retract", "Jab Retract", {
-    torso: 0.16, upperArmL: -0.24, forearmL: -2.76, upperArmR: -0.46, forearmR: -1.92,
-    thighL: 0.08, calfL: -0.18, thighR: 0.04, calfR: 0.12,
+    torso: 0.16, head: -0.06, upperArmL: -0.42, forearmL: -2.62, upperArmR: -0.5, forearmR: -2.04,
+    thighL: 0.32, calfL: -0.32, thighR: -0.22, calfR: 0.28,
   }, "warning", "closed", "combat"),
   combat_heavy_windup: pose("combat_heavy_windup", "Heavy Windup", {
-    torso: -0.38, upperArmL: -0.1, forearmL: -2.58, upperArmR: 0.86, forearmR: 0.72,
-    thighL: 0.2, calfL: -0.2, thighR: -0.04, calfR: 0.2,
+    torso: -0.42, head: 0.14, upperArmL: -0.24, forearmL: -2.56, upperArmR: 0.64, forearmR: 0.48,
+    thighL: 0.42, calfL: -0.4, thighR: -0.22, calfR: 0.34,
+  }, "warning", "closed", "combat"),
+  combat_heavy_drive: pose("combat_heavy_drive", "Heavy Hip Drive", {
+    torso: 0.02, head: -0.02, upperArmL: -0.46, forearmL: -2.54, upperArmR: -0.38, forearmR: -0.82,
+    thighL: 0.5, calfL: -0.46, thighR: -0.38, calfR: 0.4,
   }, "warning", "closed", "combat"),
   combat_heavy_contact: pose("combat_heavy_contact", "Heavy Contact", {
-    torso: 0.34, upperArmL: -0.32, forearmL: -2.72, upperArmR: -1.18, forearmR: -1.5,
-    thighL: 0.04, calfL: -0.16, thighR: -0.04, calfR: 0.16,
+    torso: 0.46, head: -0.18, upperArmL: -0.54, forearmL: -2.5, upperArmR: -1.16, forearmR: -1.48,
+    thighL: 0.52, calfL: -0.48, thighR: -0.4, calfR: 0.42,
   }, "warning", "closed", "combat"),
   combat_heavy_follow: pose("combat_heavy_follow", "Heavy Follow Through", {
-    torso: 0.5, upperArmL: -0.38, forearmL: -2.64, upperArmR: -1.42, forearmR: -1.68,
-    thighL: 0.02, calfL: -0.1, thighR: -0.18, calfR: 0.2,
+    torso: 0.62, head: -0.2, upperArmL: -0.58, forearmL: -2.46, upperArmR: -1.46, forearmR: -1.72,
+    thighL: 0.48, calfL: -0.44, thighR: -0.34, calfR: 0.4,
+  }, "warning", "closed", "combat"),
+  combat_heavy_recover: pose("combat_heavy_recover", "Heavy Recovery", {
+    torso: 0.3, head: -0.12, upperArmL: -0.48, forearmL: -2.54, upperArmR: -0.76, forearmR: -1.98,
+    thighL: 0.38, calfL: -0.36, thighR: -0.26, calfR: 0.32,
+  }, "warning", "closed", "combat"),
+  combat_kick_load: pose("combat_kick_load", "Kick Weight Shift", {
+    torso: 0.12, head: -0.04, upperArmL: -0.56, forearmL: -2.48, upperArmR: -0.2, forearmR: -2.28,
+    thighL: 0.46, calfL: -0.42, thighR: -0.56, calfR: 0.48,
   }, "warning", "closed", "combat"),
   combat_kick_chamber: pose("combat_kick_chamber", "Kick Chamber", {
-    torso: -0.18, upperArmL: -0.26, forearmL: -2.72, upperArmR: -0.16, forearmR: -2.14,
-    thighL: 0.1, calfL: -0.16, thighR: -2.52, calfR: 0.58,
+    torso: -0.22, head: 0.08, upperArmL: -0.66, forearmL: -2.44, upperArmR: 0.12, forearmR: -2.4,
+    thighL: 0.5, calfL: -0.46, thighR: -2.48, calfR: 0.62,
+  }, "warning", "closed", "combat"),
+  combat_kick_extend: pose("combat_kick_extend", "Kick Extension", {
+    torso: -0.32, head: 0.12, upperArmL: -0.76, forearmL: -2.36, upperArmR: 0.26, forearmR: -2.48,
+    thighL: 0.52, calfL: -0.48, thighR: -2.36, calfR: -0.7,
   }, "warning", "closed", "combat"),
   combat_kick_contact: pose("combat_kick_contact", "Kick Contact", {
-    torso: -0.3, upperArmL: -0.38, forearmL: -2.62, upperArmR: 0.26, forearmR: -2.36,
-    thighL: 0.16, calfL: -0.2, thighR: -2.2, calfR: -1.61,
+    torso: -0.38, head: 0.14, upperArmL: -0.84, forearmL: -2.3, upperArmR: 0.34, forearmR: -2.52,
+    thighL: 0.54, calfL: -0.5, thighR: -2.24, calfR: -1.52,
   }, "warning", "closed", "combat"),
-  combat_kick_follow: pose("combat_kick_follow", "Kick Follow Through", {
-    torso: -0.22, upperArmL: -0.32, forearmL: -2.64, upperArmR: 0.18, forearmR: -2.28,
-    thighL: 0.14, calfL: -0.18, thighR: -1.74, calfR: -1.18,
+  combat_kick_follow: pose("combat_kick_follow", "Kick Rechamber", {
+    torso: -0.28, head: 0.1, upperArmL: -0.72, forearmL: -2.4, upperArmR: 0.2, forearmR: -2.42,
+    thighL: 0.52, calfL: -0.48, thighR: -2.4, calfR: 0.5,
+  }, "warning", "closed", "combat"),
+  combat_kick_plant: pose("combat_kick_plant", "Kick Plant", {
+    torso: 0.08, head: -0.02, upperArmL: -0.5, forearmL: -2.54, upperArmR: -0.28, forearmR: -2.2,
+    thighL: 0.42, calfL: -0.4, thighR: -0.62, calfR: 0.44,
   }, "warning", "closed", "combat"),
   combat_sweep_windup: pose("combat_sweep_windup", "Sweep Windup", {
-    torso: 0.54, upperArmL: -0.5, forearmL: -2.42, upperArmR: 0.3, forearmR: -2.2,
-    thighL: -0.42, calfL: 0.42, thighR: 0.38, calfR: -0.42,
+    torso: 0.62, head: -0.18, upperArmL: -0.66, forearmL: -2.34, upperArmR: 0.18, forearmR: -2.3,
+    thighL: -0.56, calfL: 0.56, thighR: 0.5, calfR: -0.5,
+  }, "warning", "closed", "combat"),
+  combat_sweep_drive: pose("combat_sweep_drive", "Sweep Hip Turn", {
+    torso: 0.72, head: -0.22, upperArmL: -0.8, forearmL: -2.18, upperArmR: 0.42, forearmR: -2.14,
+    thighL: -0.48, calfL: 0.5, thighR: -0.28, calfR: -0.92,
   }, "warning", "closed", "combat"),
   combat_sweep_contact: pose("combat_sweep_contact", "Sweep Contact", {
-    torso: 0.62, upperArmL: -0.62, forearmL: -2.3, upperArmR: 0.38, forearmR: -2.08,
-    thighL: -0.36, calfL: 0.4, thighR: -0.8, calfR: -1.43,
+    torso: 0.76, head: -0.24, upperArmL: -0.86, forearmL: -2.1, upperArmR: 0.5, forearmR: -2.08,
+    thighL: -0.42, calfL: 0.46, thighR: -0.92, calfR: -1.5,
   }, "warning", "closed", "combat"),
   combat_sweep_follow: pose("combat_sweep_follow", "Sweep Follow Through", {
-    torso: 0.48, upperArmL: -0.54, forearmL: -2.38, upperArmR: 0.3, forearmR: -2.14,
-    thighL: -0.3, calfL: 0.34, thighR: -0.28, calfR: -0.96,
+    torso: 0.64, head: -0.2, upperArmL: -0.74, forearmL: -2.24, upperArmR: 0.36, forearmR: -2.18,
+    thighL: -0.46, calfL: 0.48, thighR: -0.42, calfR: -1.08,
+  }, "warning", "closed", "combat"),
+  combat_sweep_recover: pose("combat_sweep_recover", "Sweep Recovery", {
+    torso: 0.42, head: -0.12, upperArmL: -0.56, forearmL: -2.42, upperArmR: -0.08, forearmR: -2.26,
+    thighL: -0.34, calfL: 0.4, thighR: 0.2, calfR: -0.28,
   }, "warning", "closed", "combat"),
   combat_block: pose("combat_block", "Combat Block", {
     torso: -0.12, upperArmL: -0.78, forearmL: -2.5, upperArmR: -0.72, forearmR: -2.42,
@@ -353,28 +401,40 @@ export const TEACHING_RIG_POSES: Record<string, RigPose> = {
     thighL: -0.16, calfL: 0.22, thighR: 0.34, calfR: -0.28,
   }, "warning", "closed", "combat"),
   combat_grapple_windup: pose("combat_grapple_windup", "Grapple Entry", {
-    torso: 0.42, upperArmL: -0.72, forearmL: -2.08, upperArmR: -0.56, forearmR: -1.92,
-    thighL: -0.18, calfL: 0.22, thighR: 0.28, calfR: -0.24,
+    torso: 0.44, head: -0.12, upperArmL: -0.7, forearmL: -2.06, upperArmR: -0.54, forearmR: -1.9,
+    thighL: -0.24, calfL: 0.28, thighR: 0.34, calfR: -0.3,
+  }, "warning", "closed", "combat"),
+  combat_grapple_drive: pose("combat_grapple_drive", "Grapple Drive", {
+    torso: 0.6, head: -0.18, upperArmL: -0.88, forearmL: -1.82, upperArmR: -0.74, forearmR: -1.72,
+    thighL: -0.3, calfL: 0.34, thighR: 0.42, calfR: -0.36,
   }, "warning", "closed", "combat"),
   combat_grapple_contact: pose("combat_grapple_contact", "Grapple Contact", {
-    torso: 0.5, upperArmL: -0.98, forearmL: -1.64, upperArmR: -0.88, forearmR: -1.58,
-    thighL: -0.2, calfL: 0.24, thighR: 0.32, calfR: -0.26,
+    torso: 0.66, head: -0.2, upperArmL: -1.02, forearmL: -1.58, upperArmR: -0.94, forearmR: -1.54,
+    thighL: -0.32, calfL: 0.36, thighR: 0.44, calfR: -0.38,
+  }, "warning", "closed", "combat"),
+  combat_grapple_lift: pose("combat_grapple_lift", "Grapple Lift", {
+    torso: 0.12, head: -0.06, upperArmL: -1.72, forearmL: -2.34, upperArmR: -1.54, forearmR: -2.22,
+    thighL: 0.48, calfL: -0.44, thighR: -0.34, calfR: 0.38,
   }, "warning", "closed", "combat"),
   combat_throw_follow: pose("combat_throw_follow", "Throw Follow Through", {
-    torso: -0.28, upperArmL: -2.52, forearmL: -2.92, upperArmR: -2.18, forearmR: -2.7,
-    thighL: 0.18, calfL: -0.16, thighR: -0.08, calfR: 0.2,
+    torso: -0.34, head: 0.12, upperArmL: -2.46, forearmL: -2.86, upperArmR: -2.12, forearmR: -2.64,
+    thighL: 0.5, calfL: -0.46, thighR: -0.36, calfR: 0.4,
   }, "warning", "closed", "combat"),
   combat_launch_windup: pose("combat_launch_windup", "Launch Windup", {
-    torso: 0.54, upperArmL: -0.18, forearmL: -2.68, upperArmR: 0.58, forearmR: 0.24,
-    thighL: -0.26, calfL: 0.28, thighR: 0.32, calfR: -0.28,
+    torso: 0.58, head: -0.16, upperArmL: -0.34, forearmL: -2.54, upperArmR: 0.48, forearmR: 0.16,
+    thighL: -0.34, calfL: 0.38, thighR: 0.42, calfR: -0.36,
+  }, "warning", "closed", "combat"),
+  combat_launch_drive: pose("combat_launch_drive", "Launch Leg Drive", {
+    torso: 0.34, head: -0.12, upperArmL: -0.46, forearmL: -2.5, upperArmR: -0.18, forearmR: -1.04,
+    thighL: 0.46, calfL: -0.42, thighR: -0.32, calfR: 0.38,
   }, "warning", "closed", "combat"),
   combat_launch_contact: pose("combat_launch_contact", "Launch Contact", {
-    torso: 0.18, upperArmL: -0.32, forearmL: -2.64, upperArmR: -0.59, forearmR: -2.38,
-    thighL: 0.08, calfL: -0.14, thighR: -0.02, calfR: 0.16,
+    torso: 0.08, head: -0.04, upperArmL: -0.52, forearmL: -2.46, upperArmR: -0.62, forearmR: -2.34,
+    thighL: 0.5, calfL: -0.46, thighR: -0.36, calfR: 0.4,
   }, "warning", "closed", "combat"),
   combat_launch_follow: pose("combat_launch_follow", "Launch Follow Through", {
-    torso: -0.12, upperArmL: -0.38, forearmL: -2.6, upperArmR: -1.72, forearmR: -2.86,
-    thighL: 0.12, calfL: -0.16, thighR: -0.08, calfR: 0.2,
+    torso: -0.18, head: 0.08, upperArmL: -0.64, forearmL: -2.38, upperArmR: -1.68, forearmR: -2.78,
+    thighL: 0.46, calfL: -0.42, thighR: -0.3, calfR: 0.36,
   }, "warning", "closed", "combat"),
   combat_punch: pose("combat_punch", "Combat Punch", {
     torso: 0.2, upperArmR: -1.04, forearmR: -1.42, upperArmL: -0.28, forearmL: -2.72,
@@ -384,13 +444,33 @@ export const TEACHING_RIG_POSES: Record<string, RigPose> = {
     torso: -0.3, upperArmL: -0.38, forearmL: -2.62, upperArmR: 0.26, forearmR: -2.36,
     thighR: -2.2, calfR: -1.61, thighL: 0.16, calfL: -0.2,
   }, "warning", "closed", "combat"),
-  combat_hit: pose("combat_hit", "Combat Hit", {
-    torso: -0.52, head: -0.28, upperArmL: 0.32, forearmL: -1.9, upperArmR: -0.74,
-    forearmR: -2.12, thighL: -0.18, calfL: 0.22, thighR: 0.28, calfR: -0.22,
+  combat_hit_brace: pose("combat_hit_brace", "Brace for Impact", {
+    torso: -0.08, head: -0.1, upperArmL: -0.72, forearmL: -2.42, upperArmR: -0.68, forearmR: -2.36,
+    thighL: 0.26, calfL: -0.28, thighR: -0.12, calfR: 0.22,
+  }, "warning", "closed", "combat"),
+  combat_hit_compress: pose("combat_hit_compress", "Impact Compression", {
+    torso: -0.34, head: -0.24, upperArmL: -0.16, forearmL: -2.08, upperArmR: -0.88, forearmR: -2.22,
+    thighL: -0.14, calfL: 0.22, thighR: 0.34, calfR: -0.28,
+  }, "warning", "smallOpen", "combat"),
+  combat_hit: pose("combat_hit", "Combat Recoil", {
+    torso: -0.52, head: -0.28, upperArmL: 0.28, forearmL: -1.92, upperArmR: -0.78,
+    forearmR: -2.16, thighL: -0.2, calfL: 0.26, thighR: 0.32, calfR: -0.26,
+  }, "warning", "smallOpen", "combat"),
+  combat_stagger: pose("combat_stagger", "Balanced Stagger", {
+    torso: -0.3, head: -0.18, upperArmL: -0.08, forearmL: -2.2, upperArmR: -0.62, forearmR: -2.24,
+    thighL: -0.12, calfL: 0.2, thighR: 0.28, calfR: -0.22,
+  }, "warning", "smallOpen", "combat"),
+  combat_airborne: pose("combat_airborne", "Airborne Recoil", {
+    torso: -0.16, head: -0.12, upperArmL: 0.4, forearmL: -1.78, upperArmR: -0.9, forearmR: -2.02,
+    thighL: -0.68, calfL: 0.7, thighR: 0.64, calfR: -0.62,
   }, "warning", "smallOpen", "combat"),
   combat_fall: pose("combat_fall", "Combat Fall", {
-    torso: 1.3, head: 0.2, upperArmL: -0.9, forearmL: -1.6, upperArmR: 0.82,
-    forearmR: -0.3, thighL: -0.86, calfL: 0.52, thighR: 0.74, calfR: -0.48,
+    torso: 1.26, head: 0.18, upperArmL: -0.76, forearmL: -1.72, upperArmR: 0.68,
+    forearmR: -0.42, thighL: -0.72, calfL: 0.58, thighR: 0.62, calfR: -0.54,
+  }, "warning", "smallOpen", "combat"),
+  combat_recover_step: pose("combat_recover_step", "Get Up Step", {
+    torso: 0.48, head: -0.12, upperArmL: -0.46, forearmL: -2.42, upperArmR: -0.28, forearmR: -2.28,
+    thighL: -0.42, calfL: 0.5, thighR: 0.46, calfR: -0.42,
   }, "warning", "smallOpen", "combat"),
   combat_victory: pose("combat_victory", "Combat Victory", {
     torso: -0.08, upperArmL: -2.5, forearmL: -2.78, upperArmR: 2.48, forearmR: 2.76,

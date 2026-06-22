@@ -79,6 +79,65 @@ test("intensity deterministically scales combat effects", () => {
   assert.ok(maxEffectIntensity(extreme) > maxEffectIntensity(grounded));
 });
 
+test("offensive moves use authored anticipation, drive, contact, recoil, and recovery poses", () => {
+  const request = requestFor(20);
+  const plan = createFallbackCombatPlan(request);
+  const document = compileCombatPlan(request, plan);
+  const fighters = document.entities.filter((entity) => entity.type === "rig");
+  const fighterByPlanId = { fighterA: fighters[0], fighterB: fighters[1] };
+  const defensive = new Set(["block", "dodge", "recover"]);
+
+  for (const beat of plan.beats.filter((candidate) => !defensive.has(candidate.move))) {
+    const actor = fighterByPlanId[beat.actorId];
+    const poseTrack = document.timeline.tracks.find((track) => track.entityId === actor.id && track.property === "rig.pose");
+    const boneTracks = document.timeline.tracks.filter((track) => track.entityId === actor.id && track.property.startsWith("rig.bones."));
+    const poses = poseTrack.keyframes
+      .filter((keyframe) => keyframe.time >= beat.start - 1e-9 && keyframe.time <= beat.start + beat.duration + 1e-9)
+      .map((keyframe) => keyframe.value);
+    assert.ok(new Set(poses).size >= 5, `${beat.id} ${beat.move} did not contain a complete authored motion`);
+    assert.ok(
+      boneTracks.every((track) =>
+        track.keyframes
+          .filter((keyframe) => keyframe.time >= beat.start - 1e-9 && keyframe.time <= beat.start + beat.duration + 1e-9)
+          .every((keyframe) => keyframe.easing !== "none")
+      ),
+      `${beat.id} ${beat.move} contains a snapping joint keyframe`
+    );
+  }
+
+  const kick = plan.beats.find((beat) => beat.move === "kick");
+  assert.ok(kick, "fallback choreography should contain a kick");
+  const kickActor = fighterByPlanId[kick.actorId];
+  const kickPoses = document.timeline.tracks
+    .find((track) => track.entityId === kickActor.id && track.property === "rig.pose")
+    .keyframes.filter((keyframe) => keyframe.time >= kick.start && keyframe.time <= kick.start + kick.duration)
+    .map((keyframe) => keyframe.value);
+  const order = ["combat_kick_load", "combat_kick_chamber", "combat_kick_extend", "combat_kick_contact", "combat_kick_follow", "combat_kick_plant"];
+  let previous = -1;
+  for (const pose of order) {
+    const at = kickPoses.indexOf(pose);
+    assert.ok(at > previous, `kick is missing ordered pose ${pose}`);
+    previous = at;
+  }
+});
+
+test("knockdown rotation is bounded and reset before every new beat", () => {
+  const request = requestFor(20);
+  const plan = createFallbackCombatPlan(request);
+  const document = compileCombatPlan(request, plan);
+  const fighters = document.entities.filter((entity) => entity.type === "rig");
+  for (const fighter of fighters) {
+    const rotationTrack = document.timeline.tracks.find((track) => track.entityId === fighter.id && track.property === "transform.rotation");
+    assert.ok(rotationTrack.keyframes.every((keyframe) => Math.abs(keyframe.value) <= 45), "whole-body reaction rotation became anatomically unstable");
+  }
+  for (const beat of plan.beats) {
+    for (const fighter of fighters) {
+      const rotationTrack = document.timeline.tracks.find((track) => track.entityId === fighter.id && track.property === "transform.rotation");
+      assert.ok(rotationTrack.keyframes.some((keyframe) => Math.abs(keyframe.time - beat.start) < 0.001 && keyframe.value === 0));
+    }
+  }
+});
+
 test("rejects unsupported durations", () => {
   assert.equal(combatGenerationRequestSchema.safeParse({ ...requestFor(20), duration: 9 }).success, false);
   assert.equal(combatGenerationRequestSchema.safeParse({ ...requestFor(20), duration: 31 }).success, false);

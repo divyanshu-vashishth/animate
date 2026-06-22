@@ -73,11 +73,15 @@ function deterministicId(seed: number, index: number): string {
 
 export function createFallbackCombatPlan(request: CombatGenerationRequest): CombatPlan {
   const random = rngFromSeed(request.seed);
-  const count = Math.max(4, Math.min(12, Math.round(request.duration / 2.4)));
-  const start = request.duration * 0.19;
-  const finishAt = request.duration * 0.86;
+  const count = Math.max(6, Math.min(14, Math.round(request.duration / 1.55)));
+  const start = request.duration * 0.2;
+  const finishAt = request.duration * 0.9;
   const spacing = (finishAt - start) / count;
-  const standardMoves = ["lightPunch", "kick", "heavyPunch", "sweep", "counter", "throw", "launch", "airAttack", "barrage"] as const;
+  const choreography = [
+    ["dash", "counter", "lightPunch", "kick", "barrage", "sweep", "heavyPunch", "throw", "airAttack", "launch"],
+    ["lightPunch", "dodge", "counter", "kick", "heavyPunch", "block", "barrage", "sweep", "throw", "launch"],
+  ] as const;
+  const sequence = choreography[Math.floor(random() * choreography.length)]!;
   const winner = request.winner === "auto" ? (random() > 0.5 ? "fighterA" : "fighterB") : request.winner;
   const beats: CombatBeat[] = [];
 
@@ -85,13 +89,14 @@ export function createFallbackCombatPlan(request: CombatGenerationRequest): Comb
     let actorId: "fighterA" | "fighterB" = index % 2 === 0 ? "fighterA" : "fighterB";
     if (index === count - 1 && winner !== "draw") actorId = winner;
     const targetId = actorId === "fighterA" ? "fighterB" : "fighterA";
-    const move = index === count - 1 ? "finisher" : standardMoves[Math.floor(random() * standardMoves.length)]!;
-    const outcome = index % 4 === 1 && index < count - 2 ? (random() > 0.5 ? "block" : "dodge") : "hit";
+    const move = index === count - 1 ? "finisher" : sequence[index % sequence.length]!;
+    const defensiveMove = move === "block" || move === "dodge";
+    const outcome = defensiveMove ? "miss" : index % 5 === 1 && index < count - 2 ? (index % 2 === 0 ? "block" : "dodge") : "hit";
     const strength = move === "finisher" ? 1 : 0.42 + random() * 0.48;
     beats.push({
       id: `beat-${index + 1}`,
       start: Number((start + index * spacing).toFixed(3)),
-      duration: Number(Math.max(0.7, spacing * 0.88).toFixed(3)),
+      duration: Number(Math.max(0.72, spacing * 0.92).toFixed(3)),
       actorId,
       targetId,
       move,
@@ -131,32 +136,121 @@ function wavDataUrl(kind: string, seed: number): string {
 type CombatMove = (typeof COMBAT_MOVES)[number];
 type StrikeBone = "forearmR" | "calfR";
 
-interface MovePhases {
-  windup: string;
-  contact: string;
-  follow: string;
+type RootMotion = "start" | "entry" | "plant" | "recover";
+
+interface MotionCue {
+  at: number;
+  pose: string;
+  root: RootMotion;
+  easing: "easeIn" | "easeOut" | "easeInOut";
+}
+
+interface MoveSequence {
+  cues: MotionCue[];
+  contactAt: number;
+  contactPose: string;
   strikeBone: StrikeBone;
+  supportBone: "calfL" | "calfR";
 }
 
 const DEFENSIVE_MOVES = new Set<CombatMove>(["dodge", "block", "recover"]);
 
-function phasesForMove(move: CombatMove): MovePhases {
+const cue = (at: number, pose: string, root: RootMotion, easing: MotionCue["easing"] = "easeInOut"): MotionCue =>
+  ({ at, pose, root, easing });
+
+function sequenceForMove(move: CombatMove): MoveSequence {
   if (move === "kick" || move === "airAttack") {
-    return { windup: "combat_kick_chamber", contact: "combat_kick_contact", follow: "combat_kick_follow", strikeBone: "calfR" };
+    return {
+      contactAt: 0.56,
+      contactPose: "combat_kick_contact",
+      strikeBone: "calfR",
+      supportBone: "calfL",
+      cues: [
+        cue(0.08, "combat_kick_load", "start", "easeOut"),
+        cue(0.24, "combat_kick_chamber", "start", "easeOut"),
+        cue(0.42, "combat_kick_extend", "entry", "easeIn"),
+        cue(0.66, "combat_kick_follow", "plant", "easeOut"),
+        cue(0.78, "combat_kick_plant", "recover", "easeInOut"),
+        cue(0.94, "combat_ready", "recover", "easeOut"),
+      ],
+    };
   }
   if (move === "sweep") {
-    return { windup: "combat_sweep_windup", contact: "combat_sweep_contact", follow: "combat_sweep_follow", strikeBone: "calfR" };
+    return {
+      contactAt: 0.58,
+      contactPose: "combat_sweep_contact",
+      strikeBone: "calfR",
+      supportBone: "calfL",
+      cues: [
+        cue(0.08, "combat_crouch", "start", "easeOut"),
+        cue(0.24, "combat_sweep_windup", "start", "easeInOut"),
+        cue(0.44, "combat_sweep_drive", "entry", "easeIn"),
+        cue(0.68, "combat_sweep_follow", "plant", "easeOut"),
+        cue(0.82, "combat_sweep_recover", "recover", "easeInOut"),
+        cue(0.96, "combat_ready", "recover", "easeOut"),
+      ],
+    };
   }
   if (move === "throw") {
-    return { windup: "combat_grapple_windup", contact: "combat_grapple_contact", follow: "combat_throw_follow", strikeBone: "forearmR" };
+    return {
+      contactAt: 0.5,
+      contactPose: "combat_grapple_contact",
+      strikeBone: "forearmR",
+      supportBone: "calfL",
+      cues: [
+        cue(0.08, "combat_grapple_windup", "start", "easeOut"),
+        cue(0.3, "combat_grapple_drive", "entry", "easeIn"),
+        cue(0.62, "combat_grapple_lift", "plant", "easeOut"),
+        cue(0.76, "combat_throw_follow", "plant", "easeInOut"),
+        cue(0.94, "combat_ready", "recover", "easeOut"),
+      ],
+    };
   }
   if (move === "launch") {
-    return { windup: "combat_launch_windup", contact: "combat_launch_contact", follow: "combat_launch_follow", strikeBone: "forearmR" };
+    return {
+      contactAt: 0.56,
+      contactPose: "combat_launch_contact",
+      strikeBone: "forearmR",
+      supportBone: "calfL",
+      cues: [
+        cue(0.08, "combat_crouch", "start", "easeOut"),
+        cue(0.24, "combat_launch_windup", "start", "easeInOut"),
+        cue(0.42, "combat_launch_drive", "entry", "easeIn"),
+        cue(0.68, "combat_launch_follow", "plant", "easeOut"),
+        cue(0.84, "combat_heavy_recover", "recover", "easeInOut"),
+        cue(0.96, "combat_ready", "recover", "easeOut"),
+      ],
+    };
   }
   if (["heavyPunch", "knockdown", "finisher"].includes(move)) {
-    return { windup: "combat_heavy_windup", contact: "combat_heavy_contact", follow: "combat_heavy_follow", strikeBone: "forearmR" };
+    return {
+      contactAt: 0.56,
+      contactPose: "combat_heavy_contact",
+      strikeBone: "forearmR",
+      supportBone: "calfL",
+      cues: [
+        cue(0.08, "combat_ready", "start", "easeOut"),
+        cue(0.2, "combat_heavy_windup", "start", "easeInOut"),
+        cue(0.42, "combat_heavy_drive", "entry", "easeIn"),
+        cue(0.68, "combat_heavy_follow", "plant", "easeOut"),
+        cue(0.82, "combat_heavy_recover", "recover", "easeInOut"),
+        cue(0.96, "combat_ready", "recover", "easeOut"),
+      ],
+    };
   }
-  return { windup: "combat_jab_windup", contact: "combat_jab_contact", follow: "combat_jab_retract", strikeBone: "forearmR" };
+  return {
+    contactAt: 0.54,
+    contactPose: "combat_jab_contact",
+    strikeBone: "forearmR",
+    supportBone: "calfL",
+    cues: [
+      cue(0.08, move === "dash" ? "combat_dash_coil" : "combat_jab_windup", "start", "easeOut"),
+      cue(0.3, move === "dash" ? "combat_dash_drive" : "combat_jab_drive", "entry", "easeIn"),
+      cue(0.64, "combat_jab_recoil", "plant", "easeOut"),
+      cue(0.76, "combat_jab_retract", "plant", "easeInOut"),
+      cue(0.92, "combat_ready", "recover", "easeOut"),
+    ],
+  };
 }
 
 function strikePointForPose(poseId: string, strikeBone: StrikeBone) {
@@ -188,6 +282,15 @@ export function compileCombatPlan(request: CombatGenerationRequest, plan: Combat
     x: rootX + point.x * (fighterWidth / RIG_VIEWBOX.width) * facing,
     y: rootY - fighterHeight + (point.y - RIG_VIEWBOX.y) * (fighterHeight / RIG_VIEWBOX.height),
   });
+  const segmentEnd = (poseId: string, boneId: RigBoneId) => {
+    const segment = resolveRigGeometry(poseId).segments.find((candidate) => candidate.boneId === boneId);
+    if (!segment) throw new Error(`Missing ${boneId} geometry for ${poseId}`);
+    return segment.end;
+  };
+  const groundedRootY = (poseId: string, supportBone: "calfL" | "calfR") => {
+    const foot = segmentEnd(poseId, supportBone);
+    return baseline + (RIG_VIEWBOX.y + RIG_VIEWBOX.height - foot.y) * (fighterHeight / RIG_VIEWBOX.height);
+  };
 
   const trackFor = (entityId: string, property: string) => {
     const key = `${entityId}:${property}`;
@@ -233,19 +336,20 @@ export function compileCombatPlan(request: CombatGenerationRequest, plan: Combat
     const strength = Math.max(0, Math.min(1, beat.strength * intensityScale));
     const direction = targetPos.x >= actorPos.x ? 1 : -1;
     const windupEnd = beat.start + beat.duration * 0.24;
-    const contact = beat.start + beat.duration * 0.54;
-    const holdFrames = beat.move === "barrage" ? 6 : strength > 0.72 ? 2 : 1;
-    const holdEnd = Math.min(beat.start + beat.duration * 0.8, contact + holdFrames / 24);
     const recover = Math.min(duration - 0.35, beat.start + beat.duration);
-    const follow = Math.min(recover - 0.08, holdEnd + beat.duration * 0.16);
 
     keyframe(actorEntity, "transform.scaleX", beat.start, direction, "none");
     keyframe(targetEntity, "transform.scaleX", beat.start, -direction, "none");
-    keyframe(actorEntity, "transform.y", beat.start, baseline, "none");
+    for (const fighter of [actor, target] as const) {
+      const entityId = entityIds[fighter];
+      keyframe(entityId, "transform.y", beat.start, baseline, "easeOut");
+      keyframe(entityId, "transform.rotation", beat.start, 0, "easeOut");
+      poseAt(fighter, beat.start, "combat_guard", "easeOut");
+    }
 
     if (DEFENSIVE_MOVES.has(beat.move)) {
-      keyframe(actorEntity, "transform.x", beat.start, actorStartX, "none");
-      poseAt(actor, beat.start, "combat_guard", "none");
+      const contact = beat.start + beat.duration * 0.54;
+      keyframe(actorEntity, "transform.x", beat.start, actorStartX, "easeInOut");
       poseAt(actor, windupEnd, beat.move === "block" ? "combat_block" : beat.move === "dodge" ? "combat_dodge" : "combat_crouch", "easeOut");
       if (beat.move === "dodge") {
         const dodgeX = Math.max(70, Math.min(570, actorStartX - direction * 38));
@@ -256,95 +360,128 @@ export function compileCombatPlan(request: CombatGenerationRequest, plan: Combat
       return;
     }
 
-    const phases = phasesForMove(beat.move);
-    const strikePoint = strikePointForPose(phases.contact, phases.strikeBone);
+    const sequence = sequenceForMove(beat.move);
+    const contact = beat.start + beat.duration * sequence.contactAt;
+    const holdFrames = beat.move === "barrage" ? 3 : strength > 0.72 ? 2 : 1;
+    const holdEnd = Math.min(beat.start + beat.duration * 0.74, contact + holdFrames / 24);
+    const follow = Math.min(recover - 0.08, holdEnd + beat.duration * 0.16);
+    const strikePoint = strikePointForPose(sequence.contactPose, sequence.strikeBone);
     const bodySurface = 8.5 * (fighterWidth / RIG_VIEWBOX.width);
     const targetSurfaceX = targetStartX - direction * bodySurface;
     const strikeOffsetX = strikePoint.x * (fighterWidth / RIG_VIEWBOX.width) * direction;
     const attackX = targetSurfaceX - strikeOffsetX;
-    const actorContactY = beat.move === "airAttack" ? baseline - 8 : baseline;
+    const actorContactY = beat.move === "airAttack"
+      ? baseline - 26
+      : groundedRootY(sequence.contactPose, sequence.supportBone);
     const contactPoint = localPointToStage(strikePoint, attackX, actorContactY, direction);
     const didHit = beat.outcome === "hit";
+    const recoveryX = Math.max(70, Math.min(570, attackX - direction * (18 + strength * 9)));
+    const supportAtContact = segmentEnd(sequence.contactPose, sequence.supportBone);
+    const plantedSupportX = attackX + supportAtContact.x * (fighterWidth / RIG_VIEWBOX.width) * direction;
+    const rootForCue = (motionCue: MotionCue) => {
+      const y = beat.move === "airAttack" && motionCue.root !== "start"
+        ? baseline - (motionCue.root === "entry" ? 42 : motionCue.root === "plant" ? 26 : 0)
+        : groundedRootY(motionCue.pose, sequence.supportBone);
+      if (motionCue.root === "start") return { x: actorStartX, y };
+      if (motionCue.root === "entry") return { x: attackX - direction * 34, y };
+      if (motionCue.root === "recover") return { x: recoveryX, y };
+      const support = segmentEnd(motionCue.pose, sequence.supportBone);
+      return {
+        x: plantedSupportX - support.x * (fighterWidth / RIG_VIEWBOX.width) * direction,
+        y,
+      };
+    };
+    const emitMotionCue = (motionCue: MotionCue) => {
+      const time = beat.start + beat.duration * motionCue.at;
+      const root = rootForCue(motionCue);
+      keyframe(actorEntity, "transform.x", time, root.x, motionCue.easing);
+      keyframe(actorEntity, "transform.y", time, root.y, motionCue.easing);
+      poseAt(actor, time, motionCue.pose, motionCue.easing);
+    };
 
     const strikeTimes = beat.move === "barrage" ? [contact, contact + 2 / 24, contact + 4 / 24] : [contact];
     for (const strikeTime of strikeTimes) {
-      contacts.push({ beatId: beat.id, time: strikeTime, actorId: actor, targetId: target, x: contactPoint.x, y: contactPoint.y, strikeBone: phases.strikeBone });
+      contacts.push({ beatId: beat.id, time: strikeTime, actorId: actor, targetId: target, x: contactPoint.x, y: contactPoint.y, strikeBone: sequence.strikeBone });
     }
 
-    keyframe(actorEntity, "transform.x", beat.start, actorStartX, "none");
-    keyframe(actorEntity, "transform.x", windupEnd, actorStartX + (attackX - actorStartX) * 0.16, "easeIn");
-    keyframe(actorEntity, "transform.x", contact, attackX, beat.move === "dash" || beat.move === "barrage" || beat.move === "counter" ? "easeIn" : "easeInOut");
-    keyframe(actorEntity, "transform.x", holdEnd, attackX, "none");
-    poseAt(actor, beat.start, phases.windup, "none");
-    poseAt(actor, contact, phases.contact, "easeIn");
-    poseAt(actor, holdEnd, phases.contact, "none");
-    poseAt(actor, follow, phases.follow, "easeOut");
+    keyframe(actorEntity, "transform.x", beat.start, actorStartX, "easeInOut");
+    sequence.cues.filter((motionCue) => motionCue.at < sequence.contactAt).forEach(emitMotionCue);
+    keyframe(actorEntity, "transform.x", contact, attackX, "easeIn");
+    keyframe(actorEntity, "transform.y", contact, actorContactY, "easeIn");
+    poseAt(actor, contact, sequence.contactPose, "easeIn");
+    keyframe(actorEntity, "transform.x", holdEnd, attackX, "easeOut");
+    keyframe(actorEntity, "transform.y", holdEnd, actorContactY, "easeOut");
+    poseAt(actor, holdEnd, sequence.contactPose, "easeOut");
+    sequence.cues.filter((motionCue) => motionCue.at > sequence.contactAt).forEach(emitMotionCue);
+    keyframe(actorEntity, "transform.x", recover, recoveryX, "easeOut");
+    keyframe(actorEntity, "transform.y", recover, groundedRootY("combat_guard", sequence.supportBone), "easeOut");
     poseAt(actor, recover, "combat_guard", "easeOut");
-
-    const followX = Math.max(70, Math.min(570, attackX + direction * (6 + strength * 8)));
-    const recoveryX = Math.max(70, Math.min(570, attackX - direction * (18 + strength * 9)));
-    keyframe(actorEntity, "transform.x", follow, followX, "easeOut");
-    keyframe(actorEntity, "transform.x", recover, recoveryX, "easeInOut");
     actorPos.x = recoveryX;
 
     if (beat.move === "barrage") {
       for (const strikeTime of strikeTimes.slice(1)) {
-        poseAt(actor, strikeTime - 1 / 24, "combat_jab_retract", "none");
-        poseAt(actor, strikeTime, "combat_jab_contact", "none");
-        keyframe(actorEntity, "transform.x", strikeTime, attackX, "none");
+        poseAt(actor, strikeTime - 1 / 24, "combat_jab_retract", "easeIn");
+        poseAt(actor, strikeTime, "combat_jab_contact", "easeOut");
+        keyframe(actorEntity, "transform.x", strikeTime, attackX, "easeOut");
       }
-    }
-
-    if (beat.move === "airAttack") {
-      keyframe(actorEntity, "transform.y", windupEnd, baseline - 34, "easeOut");
-      keyframe(actorEntity, "transform.y", contact, baseline - 8, "easeIn");
-      keyframe(actorEntity, "transform.y", recover, baseline, "easeIn");
     }
 
     if (didHit) {
-      const displacement = 24 + strength * 58;
+      const displacement = 18 + strength * 44;
       const nextTargetX = Math.max(70, Math.min(570, targetStartX + direction * displacement));
-      keyframe(targetEntity, "transform.x", contact, targetStartX, "none");
-      keyframe(targetEntity, "transform.x", holdEnd, targetStartX, "none");
+      const staggerTime = holdEnd + (recover - holdEnd) * 0.48;
+      const settleTime = Math.max(staggerTime + 1 / 24, recover - Math.min(0.16, beat.duration * 0.12));
+      const isTerminalKnockdown = beat.move === "finisher" || beat.move === "knockdown";
+      const isAirborneReaction = beat.move === "throw" || beat.move === "launch" || beat.move === "airAttack" || isTerminalKnockdown;
+
+      keyframe(targetEntity, "transform.x", beat.start, targetStartX, "easeInOut");
+      keyframe(targetEntity, "transform.x", contact, targetStartX, "easeOut");
+      keyframe(targetEntity, "transform.x", holdEnd, targetStartX, "easeOut");
+      keyframe(targetEntity, "transform.x", staggerTime, targetStartX + (nextTargetX - targetStartX) * 0.7, "easeOut");
       keyframe(targetEntity, "transform.x", recover, nextTargetX, "easeOut");
-      poseAt(target, contact, "combat_guard", "none");
-      poseAt(target, holdEnd, beat.move === "finisher" || beat.move === "knockdown" || beat.move === "sweep" ? "combat_fall" : "combat_hit", "none");
-      poseAt(target, recover, beat.move === "finisher" || beat.move === "throw" ? "combat_fall" : "combat_guard", "easeOut");
+      poseAt(target, Math.max(beat.start, contact - 2 / 24), "combat_hit_brace", "easeIn");
+      poseAt(target, contact, "combat_hit_compress", "easeIn");
+      poseAt(target, holdEnd, "combat_hit_compress", "easeOut");
+      poseAt(target, staggerTime, isAirborneReaction ? "combat_airborne" : beat.move === "sweep" ? "combat_fall" : "combat_hit", "easeOut");
+      poseAt(target, settleTime, isTerminalKnockdown ? "combat_fall" : "combat_stagger", "easeInOut");
+      poseAt(target, recover, isTerminalKnockdown ? "combat_fall" : "combat_recover_step", "easeOut");
       targetPos.x = nextTargetX;
 
       if (beat.move === "throw") {
-        const throwApex = holdEnd + (recover - holdEnd) * 0.48;
-        keyframe(targetEntity, "transform.x", throwApex, attackX + direction * 34, "easeOut");
-        keyframe(targetEntity, "transform.y", holdEnd, baseline, "none");
-        keyframe(targetEntity, "transform.y", throwApex, baseline - 52, "easeOut");
+        const throwApex = staggerTime;
+        keyframe(targetEntity, "transform.y", holdEnd, baseline, "easeOut");
+        keyframe(targetEntity, "transform.y", throwApex, baseline - 58, "easeOut");
         keyframe(targetEntity, "transform.y", recover, baseline, "easeIn");
-        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "none");
-        keyframe(targetEntity, "transform.rotation", throwApex, direction * 112, "easeOut");
-        keyframe(targetEntity, "transform.rotation", recover, direction * 164, "easeIn");
+        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "easeOut");
+        keyframe(targetEntity, "transform.rotation", throwApex, direction * 38, "easeOut");
+        keyframe(targetEntity, "transform.rotation", recover, 0, "easeIn");
       } else if (["launch", "airAttack", "finisher"].includes(beat.move)) {
-        const lift = 38 + strength * 64;
-        const apex = holdEnd + (recover - holdEnd) * 0.46;
-        keyframe(targetEntity, "transform.y", holdEnd, baseline, "none");
+        const lift = 34 + strength * 48;
+        const apex = staggerTime;
+        keyframe(targetEntity, "transform.y", holdEnd, baseline, "easeOut");
         keyframe(targetEntity, "transform.y", apex, baseline - lift, "easeOut");
         keyframe(targetEntity, "transform.y", recover, baseline, "easeIn");
-        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "none");
-        keyframe(targetEntity, "transform.rotation", apex, direction * (28 + strength * 48), "easeOut");
-        keyframe(targetEntity, "transform.rotation", recover, beat.move === "finisher" ? direction * 92 : 0, "easeIn");
+        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "easeOut");
+        keyframe(targetEntity, "transform.rotation", apex, direction * (18 + strength * 18), "easeOut");
+        keyframe(targetEntity, "transform.rotation", recover, 0, "easeIn");
       } else if (beat.move === "sweep") {
-        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "none");
-        keyframe(targetEntity, "transform.rotation", recover, direction * 76, "easeOut");
+        keyframe(targetEntity, "transform.rotation", holdEnd, 0, "easeOut");
+        keyframe(targetEntity, "transform.rotation", staggerTime, direction * 22, "easeOut");
+        keyframe(targetEntity, "transform.rotation", recover, 0, "easeIn");
       }
     } else if (beat.outcome === "block") {
       poseAt(target, windupEnd, "combat_block", "easeOut");
-      poseAt(target, holdEnd, "combat_block", "none");
+      poseAt(target, holdEnd, "combat_block", "easeOut");
       poseAt(target, recover, "combat_guard", "easeOut");
-      keyframe(targetEntity, "transform.x", contact, targetStartX, "none");
+      keyframe(targetEntity, "transform.x", beat.start, targetStartX, "easeInOut");
+      keyframe(targetEntity, "transform.x", contact, targetStartX, "easeOut");
       keyframe(targetEntity, "transform.x", follow, targetStartX + direction * 10, "easeOut");
       keyframe(targetEntity, "transform.x", recover, targetStartX + direction * 5, "easeIn");
       targetPos.x += direction * 5;
     } else if (beat.outcome === "dodge") {
       poseAt(target, windupEnd, "combat_dodge", "easeOut");
       poseAt(target, recover, "combat_guard", "easeOut");
+      keyframe(targetEntity, "transform.x", beat.start, targetStartX, "easeInOut");
       keyframe(targetEntity, "transform.x", contact, targetStartX + direction * 42, "easeOut");
       keyframe(targetEntity, "transform.x", recover, targetStartX + direction * 24, "easeIn");
       targetPos.x += direction * 24;
